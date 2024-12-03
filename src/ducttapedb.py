@@ -5,7 +5,14 @@ from typing import Self, Any
 
 
 class DuctTapeDB:
-    """ezpz json store/retriever"""
+    """Initialize the DuctTapeDB instance.
+
+    Args:
+        path (str): Path to the SQLite database. Defaults to in-memory shared cache.
+        table (str): Name of the table to use. Defaults to "documents".
+        wal (bool): Whether to enable Write-Ahead Logging (WAL) mode. Defaults to True.
+        auto_init (bool): Whether to automatically initialize the table on creation. Defaults to True.
+    """
 
     # apparently I can have each thread have it's own connection
     # am i using threading correctly i wonder
@@ -49,7 +56,14 @@ class DuctTapeDB:
         self.close()
 
     def connect(self) -> sqlite3.Connection:
-        """Creates a brand-new thread-local connection with optional WAL support."""
+        """Establish a thread-local connection to the SQLite database.
+
+        Returns:
+            sqlite3.Connection: SQLite connection object.
+
+        Raises:
+            RuntimeError: If connection initialization fails.
+        """
         if not hasattr(self._local, "connection") or self._local.connection is None:
             try:
                 # Create connection
@@ -75,6 +89,7 @@ class DuctTapeDB:
         return self._local.connection
 
     def close(self):
+        """Close the thread-local database connection."""
         if hasattr(self._local, "connection") and self._local.connection is not None:
             self._local.connection.close()
             self._local.connection = None
@@ -101,7 +116,18 @@ class DuctTapeDB:
         self.conn.commit()
 
     def upsert_document(self, document: dict[Any, Any]) -> int:
-        """Insert a JSON document or update it if it already exists."""
+        """Insert a document or update it if it already exists.
+
+        Args:
+            document (dict[Any, Any]): The document to insert or update.
+
+        Returns:
+            int: The ID of the inserted or updated document.
+
+        Raises:
+            RuntimeError: If the operation fails.
+        """
+
         query = f"""
             INSERT INTO {self.table} (id, data)
             VALUES (?, json(?))
@@ -121,13 +147,28 @@ class DuctTapeDB:
             raise RuntimeError(f"Error during upsert of document {id_value}") from e
 
     def delete_document(self, id: int):
-        """Delete a document from the database by ID."""
+        """Delete a document by its unique ID.
+
+        Args:
+            id (int): Unique identifier of the document to delete.
+
+        Returns:
+            None
+        """
+
         query = f"DELETE FROM {self.table} WHERE id = ?"
         self.conn.execute(query, (id,))
         self.conn.commit()
 
-    def find(self, id: int):
-        """Find a document by its unique ID."""
+    def find(self, id: int) -> dict | None:
+        """Retrieve a document by its unique ID.
+
+        Args:
+            id (int): Unique identifier of the document.
+
+        Returns:
+            dict | None: The document as a dictionary if found, or None if not found.
+        """
         query = f"""
             SELECT id, data
             FROM {self.table}
@@ -139,8 +180,17 @@ class DuctTapeDB:
             return {"id": row[0], "data": json.loads(row[1])}
         return None
 
-    def search(self, key: str, value: Any):
-        """Search for documents in the table by JSON key-value pair."""
+    def search(self, key: str, value: Any) -> list[dict]:
+        """Search for documents by a JSON key-value pair.
+
+        Args:
+            key (str): The JSON key to search for.
+            value (Any): The value to match against the JSON key.
+
+        Returns:
+            list[dict]: A list of matching documents as dictionaries.
+        """
+
         query = f"""
             SELECT id, data
             FROM {self.table}
