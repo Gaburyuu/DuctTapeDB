@@ -193,3 +193,59 @@ def test_insert_and_delete(dq_db):
         assert (
             result is None
         ), "Metal Slime should no longer be present in the database after deletion."
+
+
+def test_find_existing_document(dq_db):
+    """Test finding an existing document by its ID."""
+    slime = Data.monster
+
+    # Insert the document
+    with dq_db as db:
+        # Test find
+        result = db.find(slime["id"])
+        assert (
+            result is not None
+        ), "The find method should return a result for an existing document."
+        assert (
+            result["id"] == slime["id"]
+        ), f"Expected ID {slime['id']}, got {result['id']}"
+        assert (
+            result["data"]["name"] == slime["name"]
+        ), f"Expected name '{slime['name']}', got '{result['data']['name']}'"
+
+
+def test_find_nonexistent_document(memory_db):
+    """Test finding a non-existent document by its ID."""
+    non_existent_id = -999
+    with memory_db as db:
+        db._initialize_table()
+        result = db.find(non_existent_id)
+    assert (
+        result is None
+    ), "The find method should return None for a non-existent document."
+
+
+def test_search_existing_key_value(dq_db):
+    """Test searching for documents with an existing key-value pair."""
+    slime = Data.monster
+
+    # Insert the document
+    with dq_db as db:
+
+        # Test search
+        results = db.search("name", slime["name"])
+        assert (
+            len(results) > 0
+        ), "The search method should return at least one result for an existing key-value pair."
+        assert (
+            results[0]["data"]["name"] == slime["name"]
+        ), f"Expected name '{slime['name']}', got '{results[0]['data']['name']}'"
+
+
+def test_search_nonexistent_key_value(dq_db):
+    """Test searching for documents with a non-existent key-value pair."""
+    with dq_db as db:
+        results = db.search("name", "Nonexistent Monster")
+        assert (
+            len(results) == 0
+        ), "The search method should return an empty list for a non-existent key-value pair."

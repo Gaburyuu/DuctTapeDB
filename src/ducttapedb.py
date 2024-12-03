@@ -121,7 +121,33 @@ class DuctTapeDB:
             raise RuntimeError(f"Error during upsert of document {id_value}") from e
 
     def delete_document(self, id: int):
-        """Delete a document from the database by unique field value (id)"""
+        """Delete a document from the database by ID."""
         query = f"DELETE FROM {self.table} WHERE id = ?"
         self.conn.execute(query, (id,))
         self.conn.commit()
+
+    def find(self, id: int):
+        """Find a document by its unique ID."""
+        query = f"""
+            SELECT id, data
+            FROM {self.table}
+            WHERE id = ?
+        """
+        cursor = self.conn.execute(query, (id,))
+        row = cursor.fetchone()
+        if row:
+            return {"id": row[0], "data": json.loads(row[1])}
+        return None
+
+    def search(self, key: str, value: Any):
+        """Search for documents in the table by JSON key-value pair."""
+        query = f"""
+            SELECT id, data
+            FROM {self.table}
+            WHERE json_extract(data, '$.' || ?) = ?
+        """
+        cursor = self.conn.execute(query, (key, value))
+        results = [
+            {"id": row[0], "data": json.loads(row[1])} for row in cursor.fetchall()
+        ]
+        return results
