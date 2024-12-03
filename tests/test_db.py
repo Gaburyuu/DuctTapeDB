@@ -216,7 +216,7 @@ def test_find_existing_document(dq_db):
 
 def test_find_nonexistent_document(memory_db):
     """Test finding a non-existent document by its ID."""
-    non_existent_id = -999
+    non_existent_id = 999
     with memory_db as db:
         db._initialize_table()
         result = db.find(non_existent_id)

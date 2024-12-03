@@ -2,6 +2,7 @@ import sqlite3
 import json
 from threading import local
 from typing import Self, Any
+from . import validators as v
 
 
 class DuctTapeDB:
@@ -98,7 +99,8 @@ class DuctTapeDB:
     def conn(self):
         return self.connect()
 
-    def _initialize_table(self):
+    def _initialize_table(self, indexes: list[str] = None):
+        """Initialize the database table with optional JSON indexes."""
         query = f"""
             CREATE TABLE IF NOT EXISTS {self.table} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,12 +109,14 @@ class DuctTapeDB:
         """
         self.conn.execute(query)
 
-        # Create the index
-        make_index = f"""
-            CREATE INDEX IF NOT EXISTS idx_{self.table}_name
-            ON {self.table} (json_extract(data, '$.name'))
-        """
-        self.conn.execute(make_index)
+        # Create indexes
+        indexes = indexes or []
+        for index in indexes:
+            make_index = f"""
+                CREATE INDEX IF NOT EXISTS idx_{self.table}_{index}
+                ON {self.table} (json_extract(data, '$.{index}'))
+            """
+            self.conn.execute(make_index)
         self.conn.commit()
 
     def upsert_document(self, document: dict[Any, Any]) -> int:
@@ -127,7 +131,7 @@ class DuctTapeDB:
         Raises:
             RuntimeError: If the operation fails.
         """
-
+        v.validate_document(document)
         query = f"""
             INSERT INTO {self.table} (id, data)
             VALUES (?, json(?))
@@ -155,7 +159,7 @@ class DuctTapeDB:
         Returns:
             None
         """
-
+        v.validate_id(id)
         query = f"DELETE FROM {self.table} WHERE id = ?"
         self.conn.execute(query, (id,))
         self.conn.commit()
@@ -169,6 +173,7 @@ class DuctTapeDB:
         Returns:
             dict | None: The document as a dictionary if found, or None if not found.
         """
+        v.validate_id(id)
         query = f"""
             SELECT id, data
             FROM {self.table}
@@ -190,7 +195,7 @@ class DuctTapeDB:
         Returns:
             list[dict]: A list of matching documents as dictionaries.
         """
-
+        v.validate_key_value(key, value)
         query = f"""
             SELECT id, data
             FROM {self.table}
