@@ -1,7 +1,7 @@
 import sqlite3
 import json
 from threading import local
-from typing import Self
+from typing import Self, Any
 
 
 class DuctTapeDB:
@@ -17,10 +17,12 @@ class DuctTapeDB:
         table: str = "documents",
         wal: bool = True,
         auto_init=True,
+        unique_field: str = "id",
     ):
         self.path = path
         self.table = table
         self.wal = wal
+        self.unique_field = unique_field
         if auto_init:
             self.connect()
             self._initialize_table()
@@ -84,10 +86,9 @@ class DuctTapeDB:
         return self.connect()
 
     def _initialize_table(self):
-        # TODO custom id name?
         query = f"""
             CREATE TABLE IF NOT EXISTS {self.table} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                {self.unique_field} INTEGER PRIMARY KEY AUTOINCREMENT,
                 data JSON NOT NULL
             )
         """
@@ -99,4 +100,30 @@ class DuctTapeDB:
             ON {self.table} (json_extract(data, '$.name'))
         """
         self.conn.execute(make_index)
+        self.conn.commit()
+
+    def upsert_document(self, document: dict[Any, Any]) -> int:
+        """Insert a JSON document or update it if it already exists."""
+        query = f"""
+            INSERT INTO {self.table} (id, data)
+            VALUES (?, json(?))
+            ON CONFLICT ({self.unique_field})
+            DO UPDATE SET
+                data = json(?)
+        """
+        id_value = document.get(self.unique_field)
+        json_data = json.dumps(document)
+
+        try:
+            cursor = self.conn.execute(query, (id_value, json_data, json_data))
+            self.conn.commit()
+            return id_value or cursor.lastrowid
+        except Exception as e:
+            self.conn.rollback()
+            raise RuntimeError(f"Error during upsert of document {id_value}") from e
+
+    def delete_document(self, unique_value: int):
+        """Delete a document from the database by unique field value (id)"""
+        query = f"DELETE FROM {self.table} WHERE {self.unique_field} = ?"
+        self.conn.execute(query, (unique_value,))
         self.conn.commit()

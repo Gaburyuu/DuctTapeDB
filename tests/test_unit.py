@@ -2,6 +2,8 @@ import pytest
 from src.ducttapedb import DuctTapeDB
 import tempfile
 import os
+from .data import Data
+import json
 
 
 @pytest.fixture
@@ -85,3 +87,78 @@ def test_invalid_db_path():
     """Test that invalid database paths raise an error."""
     with pytest.raises(RuntimeError, match="Failed to connect"):
         DuctTapeDB(path="/invalid/path/to/db.sqlite", table="main")
+
+
+@pytest.fixture
+def dq_db() -> DuctTapeDB:
+    """Initialize a db with sample data"""
+    db_path = get_temp_db_path()
+    db = DuctTapeDB.create("dq", db_path)
+    with db:
+        db._initialize_table()
+        db.upsert_document(Data.hero)
+        db.upsert_document(Data.monster)
+        db.upsert_document(Data.equipment)
+
+    yield db
+
+    # Cleanup
+    if os.path.exists(db_path):
+        os.remove(db_path)
+
+
+def test_insert_hero(dq_db):
+    """Test inserting and retrieving the hero document."""
+    hero = Data.hero
+    with dq_db as db:
+        result = db.conn.execute(
+            f"SELECT data FROM {db.table} WHERE id = ?", (hero["id"],)
+        ).fetchone()
+        assert result is not None, "Hero document should be present in the database."
+        retrieved_hero = json.loads(result[0])
+        assert (
+            retrieved_hero["name"] == hero["name"]
+        ), f"Expected hero name '{hero['name']}', got '{retrieved_hero['name']}'"
+
+
+def test_insert_and_update_monster(dq_db):
+    """Test inserting and retrieving the monster document."""
+    monster = Data.monster
+    updated_monster = {
+        **monster,
+        "level": 99,
+        "abilities": monster["abilities"]
+        + [
+            "MegaMagic",
+        ],
+    }
+
+    # Check the insert
+    with dq_db as db:
+        result = db.conn.execute(
+            f"SELECT data FROM {db.table} WHERE id = ?", (monster["id"],)
+        ).fetchone()
+        assert result is not None, "Monster document should be present in the database."
+        retrieved_monster = json.loads(result[0])
+        assert (
+            retrieved_monster["name"] == monster["name"]
+        ), f"Expected monster name '{monster['name']}', got '{retrieved_monster['name']}'"
+
+    # Okay now make an edit
+    with dq_db:
+        db.upsert_document(updated_monster)
+        result = db.conn.execute(
+            f"SELECT data FROM {db.table} WHERE id = ?", (updated_monster["id"],)
+        ).fetchone()
+        assert (
+            result is not None
+        ), "Updated monster should still be present in the database."
+
+        # Verify the updated data
+        retrieved_monster = json.loads(result[0])
+        assert (
+            retrieved_monster["level"] == updated_monster["level"]
+        ), f"Expected updated level {updated_monster['level']}, got {retrieved_monster['level']}"
+        assert (
+            retrieved_monster["abilities"] == updated_monster["abilities"]
+        ), f"Expected updated abilities {updated_monster['abilities']}, got {retrieved_monster['abilities']}"
