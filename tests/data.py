@@ -42,3 +42,9 @@ class Data:
         "hp": 4,
         "defense": 9999,
     }
+
+    monster_list = [
+        {"id": 1, "name": "Slime", "type": "Monster", "level": 1, "hp": 5},
+        {"id": 2, "name": "Metal Slime", "type": "Monster", "level": 10, "hp": 4},
+        {"id": 3, "name": "Dragon", "type": "Monster", "level": 20, "hp": 50},
+    ]

@@ -151,3 +151,63 @@ class DuctTapeDB:
             {"id": row[0], "data": json.loads(row[1])} for row in cursor.fetchall()
         ]
         return results
+
+    def aggregate(
+        self,
+        operation: str,
+        json_key: str,
+        where_values: list[dict] = None,
+        where_raw: str = None,
+    ) -> Any:
+        """Perform an aggregate operation on a specific JSON key with optional WHERE clauses.
+
+        Args:
+            operation (str): SQL aggregate function (e.g., 'COUNT', 'SUM', 'AVG').
+            json_key (str): JSON key to aggregate (e.g., 'age', 'price').
+            where_values (list[dict], optional): List of conditions to apply,
+                e.g., [{"field": "age", "sign": ">", "value": 30}]. Defaults to None.
+            where_raw (str, optional): Raw SQL WHERE clause string,
+                e.g., "json_extract(data, '$.age') > 30". Defaults to None.
+
+        Returns:
+            Any: Result of the aggregate operation, or None if no result.
+
+        Raises:
+            ValueError: If operation or json_key is invalid.
+            RuntimeError: If a database error occurs.
+
+        Notes:
+            Always prefer `where_values` over `where_raw` to ensure query safety.
+        """
+        valid_operations = {"COUNT", "SUM", "AVG", "MIN", "MAX"}
+        if operation.upper() not in valid_operations:
+            raise ValueError(f"Invalid SQL aggregate function: {operation}")
+
+        if not json_key:
+            raise ValueError("JSON key cannot be empty")
+
+        query = f"SELECT {operation}(json_extract(data, '$.' || ?)) FROM {self.table}"
+        params = [json_key]
+
+        if where_raw and where_values:
+            raise ValueError("Specify either 'where_values' or 'where_raw', not both.")
+
+        try:
+            if where_raw:
+                query += " WHERE " + where_raw
+            elif where_values:
+                conditions = [
+                    "json_extract(data, '$.' || ?) {} ?".format(cond["sign"])
+                    for cond in where_values
+                ]
+                query += " WHERE " + " AND ".join(conditions)
+                params += [cond["field"] for cond in where_values] + [
+                    cond["value"] for cond in where_values
+                ]
+
+            cursor = self.conn.execute(query, params)
+            result = cursor.fetchone()
+            return result[0] if result else None
+
+        except Exception as e:
+            raise RuntimeError(f"Database error during aggregate operation: {e}")

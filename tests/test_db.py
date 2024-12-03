@@ -249,3 +249,45 @@ def test_search_nonexistent_key_value(dq_db):
         assert (
             len(results) == 0
         ), "The search method should return an empty list for a non-existent key-value pair."
+
+
+def test_aggregate_safe(memory_db):
+    """Test the aggregate function with parameterized conditions."""
+
+    # Insert monsters into the database
+    with memory_db as db:
+        memory_db._initialize_table()
+        for monster in Data.monster_list:
+            db.upsert_document(monster)
+
+        # Aggregate: COUNT monsters with level > 5
+        count = db.aggregate(
+            "COUNT", "level", where_values=[{"field": "level", "sign": ">", "value": 5}]
+        )
+        assert count == 2, f"Expected 2 monsters with level > 5, got {count}"
+
+        # Aggregate: SUM of HP for all monsters
+        total_hp = db.aggregate("SUM", "hp")
+        assert total_hp == 59, f"Expected total HP to be 59, got {total_hp}"
+
+
+def test_aggregate_where_raw(memory_db):
+    """Test the aggregate function with raw WHERE clause (use cautiously)."""
+
+    # Insert monsters into the database
+    with memory_db as db:
+        memory_db._initialize_table()
+        for monster in Data.monster_list:
+            db.upsert_document(monster)
+
+        # Aggregate: COUNT monsters with a raw WHERE clause
+        count = db.aggregate(
+            "COUNT", "level", where_raw="json_extract(data, '$.type') = 'Monster'"
+        )
+        assert count == 3, f"Expected 3 monsters, got {count}"
+
+        # Quick and dirty SQL injection test
+        with pytest.raises(
+            RuntimeError, match="You can only execute one statement at a time"
+        ):
+            db.aggregate("COUNT", "level", where_raw="1=1; DROP TABLE documents;")
