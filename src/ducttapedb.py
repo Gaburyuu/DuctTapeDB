@@ -146,7 +146,7 @@ class DuctTapeDB:
             cursor = self.conn.execute(query, (id_value, json_data, json_data))
             self.conn.commit()
             return id_value or cursor.lastrowid
-        except Exception as e:
+        except sqlite3.Error as e:
             self.conn.rollback()
             raise RuntimeError(f"Error during upsert of document {id_value}") from e
 
