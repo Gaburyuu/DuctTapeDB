@@ -17,12 +17,10 @@ class DuctTapeDB:
         table: str = "documents",
         wal: bool = True,
         auto_init=True,
-        unique_field: str = "id",
     ):
         self.path = path
         self.table = table
         self.wal = wal
-        self.unique_field = unique_field
         if auto_init:
             self.connect()
             self._initialize_table()
@@ -88,7 +86,7 @@ class DuctTapeDB:
     def _initialize_table(self):
         query = f"""
             CREATE TABLE IF NOT EXISTS {self.table} (
-                {self.unique_field} INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 data JSON NOT NULL
             )
         """
@@ -107,11 +105,11 @@ class DuctTapeDB:
         query = f"""
             INSERT INTO {self.table} (id, data)
             VALUES (?, json(?))
-            ON CONFLICT ({self.unique_field})
+            ON CONFLICT (id)
             DO UPDATE SET
                 data = json(?)
         """
-        id_value = document.get(self.unique_field)
+        id_value = document.get("id")
         json_data = json.dumps(document)
 
         try:
@@ -122,8 +120,8 @@ class DuctTapeDB:
             self.conn.rollback()
             raise RuntimeError(f"Error during upsert of document {id_value}") from e
 
-    def delete_document(self, unique_value: int):
+    def delete_document(self, id: int):
         """Delete a document from the database by unique field value (id)"""
-        query = f"DELETE FROM {self.table} WHERE {self.unique_field} = ?"
-        self.conn.execute(query, (unique_value,))
+        query = f"DELETE FROM {self.table} WHERE id = ?"
+        self.conn.execute(query, (id,))
         self.conn.commit()

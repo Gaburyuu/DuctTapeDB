@@ -162,3 +162,34 @@ def test_insert_and_update_monster(dq_db):
         assert (
             retrieved_monster["abilities"] == updated_monster["abilities"]
         ), f"Expected updated abilities {updated_monster['abilities']}, got {retrieved_monster['abilities']}"
+
+
+def test_insert_and_delete(dq_db):
+    """Test inserting a document and then deleting it."""
+    metal_slime = Data.metal_slime
+
+    # Step 1: Insert Metal Slime
+    with dq_db as db:
+        db.upsert_document(metal_slime)
+        result = db.conn.execute(
+            f"SELECT data FROM {db.table} WHERE id = ?", (metal_slime["id"],)
+        ).fetchone()
+        assert (
+            result is not None
+        ), "Metal Slime should be present in the database after insertion."
+
+        # Verify the inserted data
+        retrieved_slime = json.loads(result[0])
+        assert (
+            retrieved_slime["name"] == metal_slime["name"]
+        ), f"Expected Metal Slime name '{metal_slime['name']}', got '{retrieved_slime['name']}'"
+
+    # Step 2: Delete Metal Slime
+    with db:
+        db.delete_document(metal_slime["id"])
+        result = db.conn.execute(
+            f"SELECT data FROM {db.table} WHERE id = ?", (metal_slime["id"],)
+        ).fetchone()
+        assert (
+            result is None
+        ), "Metal Slime should no longer be present in the database after deletion."

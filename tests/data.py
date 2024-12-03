@@ -30,3 +30,15 @@ class Data:
         "attack": 120,
         "special_effect": "Disruptive Wave",
     }
+
+    metal_slime = {
+        "id": 4,
+        "name": "Metal Slime",
+        "type": "Monster",
+        "level": 10,
+        "abilities": [
+            "Flee",
+        ],
+        "hp": 4,
+        "defense": 9999,
+    }
