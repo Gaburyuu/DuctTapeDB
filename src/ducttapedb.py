@@ -123,7 +123,10 @@ class DuctTapeDB:
         """Insert a document or update it if it already exists.
 
         Args:
-            document (dict[Any, Any]): The document to insert or update.
+            document (dict[Any, Any]):
+                The document to insert or update. If the document does not have an "id",
+                the entire document is stored. If the document has an "id", only the "data"
+                field is stored.
 
         Returns:
             int: The ID of the inserted or updated document.
@@ -132,20 +135,38 @@ class DuctTapeDB:
             RuntimeError: If the operation fails.
         """
         v.validate_document(document)
-        query = f"""
-            INSERT INTO {self.table} (id, data)
-            VALUES (?, json(?))
-            ON CONFLICT (id)
-            DO UPDATE SET
-                data = json(?)
-        """
+
         id_value = document.get("id")
-        json_data = json.dumps(document)
+
+        if id_value is None:
+            # Serialize the entire document when no ID is provided
+            json_data = json.dumps(document)
+            query = f"""
+                INSERT INTO {self.table} (data)
+                VALUES (json(?))
+            """
+            params = (json_data,)
+        else:
+            # Serialize only the "data" field when an ID is provided
+            if "data" not in document:
+                raise ValueError(
+                    "Documents with an 'id' must also include a 'data' field."
+                )
+
+            json_data = json.dumps(document["data"])
+            query = f"""
+                INSERT INTO {self.table} (id, data)
+                VALUES (?, json(?))
+                ON CONFLICT (id)
+                DO UPDATE SET
+                    data = json(?)
+            """
+            params = (id_value, json_data, json_data)
 
         try:
-            cursor = self.conn.execute(query, (id_value, json_data, json_data))
+            cursor = self.conn.execute(query, params)
             self.conn.commit()
-            return id_value or cursor.lastrowid
+            return cursor.lastrowid if id_value is None else id_value
         except sqlite3.Error as e:
             self.conn.rollback()
             raise RuntimeError(f"Error during upsert of document {id_value}") from e

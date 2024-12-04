@@ -1,5 +1,5 @@
 import pytest
-from src.ducttapedb import DuctTapeDB
+from src import DuctTapeDB
 import tempfile
 import os
 from .data import Data
@@ -8,8 +8,9 @@ import json
 
 @pytest.fixture
 def memory_db() -> DuctTapeDB:
-    """in memory db"""
-    return DuctTapeDB.create_memory()
+    """Fixture to provide an in-memory DuctTapeDB instance."""
+    db = DuctTapeDB.create_memory()
+    return db
 
 
 def get_temp_db_path(prefix: str = "default"):
@@ -110,28 +111,32 @@ def dq_db() -> DuctTapeDB:
 def test_insert_hero(dq_db):
     """Test inserting and retrieving the hero document."""
     hero = Data.hero
+    hero_data = hero["data"]
     with dq_db as db:
         result = db.conn.execute(
             f"SELECT data FROM {db.table} WHERE id = ?", (hero["id"],)
         ).fetchone()
         assert result is not None, "Hero document should be present in the database."
+        print("result", result)
         retrieved_hero = json.loads(result[0])
         assert (
-            retrieved_hero["name"] == hero["name"]
-        ), f"Expected hero name '{hero['name']}', got '{retrieved_hero['name']}'"
+            retrieved_hero["name"] == hero_data["name"]
+        ), f"Expected hero name '{hero_data['name']}', got '{retrieved_hero['name']}'"
 
 
 def test_insert_and_update_monster(dq_db):
     """Test inserting and retrieving the monster document."""
     monster = Data.monster
-    updated_monster = {
-        **monster,
+    monster_data = monster["data"]
+    updated_monster_data = {
+        **monster_data,
         "level": 99,
-        "abilities": monster["abilities"]
+        "abilities": monster_data["abilities"]
         + [
             "MegaMagic",
         ],
     }
+    updated_monster = {**monster, "data": updated_monster_data}
 
     # Check the insert
     with dq_db as db:
@@ -141,8 +146,8 @@ def test_insert_and_update_monster(dq_db):
         assert result is not None, "Monster document should be present in the database."
         retrieved_monster = json.loads(result[0])
         assert (
-            retrieved_monster["name"] == monster["name"]
-        ), f"Expected monster name '{monster['name']}', got '{retrieved_monster['name']}'"
+            retrieved_monster["name"] == monster_data["name"]
+        ), f"Expected monster name '{monster_data['name']}', got '{retrieved_monster['name']}'"
 
     # Okay now make an edit
     with dq_db:
@@ -157,11 +162,11 @@ def test_insert_and_update_monster(dq_db):
         # Verify the updated data
         retrieved_monster = json.loads(result[0])
         assert (
-            retrieved_monster["level"] == updated_monster["level"]
-        ), f"Expected updated level {updated_monster['level']}, got {retrieved_monster['level']}"
+            retrieved_monster["level"] == updated_monster_data["level"]
+        ), f"Expected updated level {updated_monster_data['level']}, got {retrieved_monster['level']}"
         assert (
-            retrieved_monster["abilities"] == updated_monster["abilities"]
-        ), f"Expected updated abilities {updated_monster['abilities']}, got {retrieved_monster['abilities']}"
+            retrieved_monster["abilities"] == updated_monster_data["abilities"]
+        ), f"Expected updated abilities {updated_monster_data['abilities']}, got {retrieved_monster['abilities']}"
 
 
 def test_insert_and_delete(dq_db):
@@ -170,9 +175,9 @@ def test_insert_and_delete(dq_db):
 
     # Step 1: Insert Metal Slime
     with dq_db as db:
-        db.upsert_document(metal_slime)
+        ms_id = db.upsert_document(metal_slime)
         result = db.conn.execute(
-            f"SELECT data FROM {db.table} WHERE id = ?", (metal_slime["id"],)
+            f"SELECT data FROM {db.table} WHERE id = ?", (ms_id,)
         ).fetchone()
         assert (
             result is not None
@@ -186,9 +191,9 @@ def test_insert_and_delete(dq_db):
 
     # Step 2: Delete Metal Slime
     with db:
-        db.delete_document(metal_slime["id"])
+        db.delete_document(ms_id)
         result = db.conn.execute(
-            f"SELECT data FROM {db.table} WHERE id = ?", (metal_slime["id"],)
+            f"SELECT data FROM {db.table} WHERE id = ?", (ms_id,)
         ).fetchone()
         assert (
             result is None
@@ -210,8 +215,8 @@ def test_find_existing_document(dq_db):
             result["id"] == slime["id"]
         ), f"Expected ID {slime['id']}, got {result['id']}"
         assert (
-            result["data"]["name"] == slime["name"]
-        ), f"Expected name '{slime['name']}', got '{result['data']['name']}'"
+            result["data"]["name"] == slime["data"]["name"]
+        ), f"Expected name '{slime['data']['name']}', got '{result['data']['name']}'"
 
 
 def test_find_nonexistent_document(memory_db):
@@ -233,13 +238,13 @@ def test_search_existing_key_value(dq_db):
     with dq_db as db:
 
         # Test search
-        results = db.search("name", slime["name"])
+        results = db.search("name", slime["data"]["name"])
         assert (
             len(results) > 0
         ), "The search method should return at least one result for an existing key-value pair."
         assert (
-            results[0]["data"]["name"] == slime["name"]
-        ), f"Expected name '{slime['name']}', got '{results[0]['data']['name']}'"
+            results[0]["data"]["name"] == slime["data"]["name"]
+        ), f"Expected name '{slime['data']['name']}', got '{results[0]['data']['name']}'"
 
 
 def test_search_nonexistent_key_value(dq_db):
