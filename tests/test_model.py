@@ -55,3 +55,33 @@ def test_from_id_validation_error(memory_db):
             ValueError, match="Failed to validate data from the database:"
         ):
             ExampleModel.from_id(db, _id)
+
+
+def test_save_new_instance(memory_db):
+    """Test saving a new instance generates an ID."""
+    with memory_db as db:
+        db._initialize_table()
+        instance = ExampleModel(name="Slime", level=5)
+
+        doc_id = instance.save(db)
+
+        assert doc_id > 0  # ID should be auto-generated
+        saved_doc = db.find(doc_id)
+        assert saved_doc["data"]["name"] == "Slime"
+
+
+def test_save_existing_instance(memory_db):
+    """Test saving an existing instance updates the database."""
+    with memory_db as db:
+        db._initialize_table()
+        # Insert initial data
+        initial_doc = {"id": 1, "data": {"name": "Slime", "level": 5}}
+        db.upsert_document(initial_doc)
+
+        # Create model and modify it
+        instance = ExampleModel(id=1, name="Slime", level=10)
+        doc_id = instance.save(db)
+
+        assert doc_id == 1  # ID should remain the same
+        updated_doc = db.find(1)
+        assert updated_doc["data"]["level"] == 10

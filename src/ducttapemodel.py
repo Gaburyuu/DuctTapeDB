@@ -39,12 +39,25 @@ class DuctTapeModel(BaseModel):
 
     def save(self, db: DuctTapeDB) -> int:
         """
-        Save the model instance to the database, updating if `id` is set.
+        Save the model instance to the database.
+
+        Args:
+            db (DuctTapeDB): The database instance to save to.
+
+        Returns:
+            int: The ID of the saved document. If the instance is newly created,
+                this will be the auto-generated ID.
         """
-        data = self.model_dump(exclude="id")
-        if self.id:
-            data = {"id": self.id, "data": data}
-            db.upsert_document(data)
+
+        # Prepare data for saving
+        data = self.model_dump(exclude={"id"})
+
+        if self.id is not None:
+            # Update existing document
+            document = {"id": self.id, "data": data}
+            db.upsert_document(document)
         else:
+            # Insert new document and update the instance's ID
             self.id = db.upsert_document(data)
+
         return self.id
