@@ -4,6 +4,7 @@ import tempfile
 import os
 from .data import Data
 import json
+import threading
 
 
 @pytest.fixture
@@ -24,6 +25,19 @@ def file_db() -> DuctTapeDB:
     """Fixture to create a file-based NoSQLLiteDB instance."""
     db_path = get_temp_db_path()
     db = DuctTapeDB.create("main", db_path)
+
+    yield db
+
+    # Cleanup
+    if os.path.exists(db_path):
+        os.remove(db_path)
+
+
+@pytest.fixture
+def thread_db() -> DuctTapeDB:
+    """Fixture to create a file-based NoSQLLiteDB instance."""
+    db_path = get_temp_db_path(prefix="thread")
+    db = DuctTapeDB.create("thread", db_path)
 
     yield db
 
@@ -296,3 +310,31 @@ def test_aggregate_where_raw(memory_db):
             RuntimeError, match="You can only execute one statement at a time"
         ):
             db.aggregate("COUNT", "level", where_raw="1=1; DROP TABLE documents;")
+
+
+def worker(db_obj: DuctTapeDB, thread_id):
+    with db_obj as db:
+        for i in range(100):
+            db.insert({"name": f"Thread-{thread_id}-{i}", "age": (thread_id * 10) + i})
+
+        for i in range(100):
+            result = db.search("name", f"Thread-{thread_id}-{i}")
+            assert len(result) == 1
+            assert result[0]["data"]["age"] == (thread_id * 10) + i
+
+
+def test_thread_safety(thread_db):
+    """Test database operations in multiple threads."""
+
+    threads = []
+    for i in range(5):  # Create 5 threads
+        t = threading.Thread(target=worker, args=(thread_db, i))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    # Verify the aggregate count
+    with thread_db as db:
+        assert db.aggregate("COUNT", "age") == 500, "Total count should be 500"

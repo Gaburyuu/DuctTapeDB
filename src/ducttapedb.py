@@ -119,6 +119,9 @@ class DuctTapeDB:
             self.conn.execute(make_index)
         self.conn.commit()
 
+    def insert(self, document: dict[Any, Any]) -> int:
+        return self.upsert_document(document)
+
     def upsert_document(self, document: dict[Any, Any]) -> int:
         """Insert a document or update it if it already exists.
 
