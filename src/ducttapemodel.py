@@ -36,3 +36,15 @@ class DuctTapeModel(BaseModel):
             return cls.model_validate(data)
         except ValidationError as e:
             raise ValueError(f"Failed to validate data from the database: {e}")
+
+    def save(self, db: DuctTapeDB) -> int:
+        """
+        Save the model instance to the database, updating if `id` is set.
+        """
+        data = self.model_dump(exclude="id")
+        if self.id:
+            data = {"id": self.id, "data": data}
+            db.upsert_document(data)
+        else:
+            self.id = db.upsert_document(data)
+        return self.id
