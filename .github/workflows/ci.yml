@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff black pytest
+          pip install ruff black pytest pydantic
 
       - name: Run Ruff
         run: ruff check . --fix # Lint with Ruff and auto-fix issues
