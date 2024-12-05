@@ -42,14 +42,16 @@ class DuctTapeDB:
         return cls(path=path, table=table)
 
     @classmethod
-    def create_memory(cls, table: str = "documents", shared_cache: bool = True) -> Self:
+    def create_memory(
+        cls, table: str = "documents", shared_cache: bool = True, auto_init: bool = True
+    ) -> Self:
         """Creates an obj with an in memory db"""
         if shared_cache:
             path = "file::memory:?cache=shared"
         else:
             path = ":memory:"
         # No WAL mode in memory dbs
-        return cls(path=path, table=table, wal=False, auto_init=False)
+        return cls(path=path, table=table, wal=False, auto_init=auto_init)
 
     def __enter__(self):
         self.connect()
