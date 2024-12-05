@@ -1,5 +1,7 @@
 import pytest
-from src.validators import validate_document
+from src import validators
+
+validate_document = validators.validate_document
 
 
 def test_validate_document_with_id_in_data():
