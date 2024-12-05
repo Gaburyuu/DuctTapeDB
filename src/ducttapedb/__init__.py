@@ -1,2 +1,2 @@
-from .ducttapedb import DuctTapeDB
-from .ducttapemodel import DuctTapeModel
+from .ducttapedb import DuctTapeDB as DuctTapeDB
+from .ducttapemodel import DuctTapeModel as DuctTapeModel

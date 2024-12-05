@@ -1,4 +1,4 @@
-from typing import TypeVar, Type, Optional, Self, Any
+from typing import TypeVar, Type, Optional
 from pydantic import BaseModel, ValidationError
 from .ducttapedb import DuctTapeDB
 
