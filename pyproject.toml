@@ -1,21 +1,41 @@
-[build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "ducttapedb"
-version = "0.1.0"
-description = "A lightweight SQLite-backed NoSQL-like database."
-readme = "README.md"
-license = { text = "MIT" }
-authors = [{ name = "Your Name", email = "you@example.com" }]
-keywords = ["database", "nosql", "sqlite"]
-classifiers = [
-    "Programming Language :: Python :: 3.10",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent"
+version = "2024.12.5.1"
+description = "Lightweight NoSQL-like database with SQLite."
+authors = [{name="Gabu", email="gaburyuu@gmail.com"}]
+maintainers = [{name="Gabu", email="gaburyuu@gmail.com"}]
+license = "MIT"
+dependencies = [
+    "pydantic>=2.0.0",
 ]
-dependencies = ["pydantic>=2.0", "sqlite3"]
+requires-python = ">=3.11"
+readme = "README.md"
+classifiers = [
+  "Development Status :: 3 - Alpha",
 
-[tool.setuptools.packages]
-find = { where = ["src"] }
+  # Indicate who your project is intended for
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries",
+
+  # Pick your license as you wish
+  "License :: OSI Approved :: MIT License",
+
+  # Specify the Python versions you support here. In particular, ensure
+  # that you indicate you support Python 3. These classifiers are *not*
+  # checked by "pip install". See instead "requires-python" key in this file.
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
