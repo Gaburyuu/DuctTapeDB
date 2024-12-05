@@ -12,7 +12,10 @@ class DuctTapeDB:
         path (str): Path to the SQLite database. Defaults to in-memory shared cache.
         table (str): Name of the table to use. Defaults to "documents".
         wal (bool): Whether to enable Write-Ahead Logging (WAL) mode. Defaults to True.
-        auto_init (bool): Whether to automatically initialize the table on creation. Defaults to True.
+        auto_init (bool):
+            Whether to automatically initialize the table on creation. Defaults to True.
+            Will leave the created object in the connected state.
+            In memory DBs will go awa
     """
 
     # apparently I can have each thread have it's own connection
@@ -32,7 +35,6 @@ class DuctTapeDB:
         if auto_init:
             self.connect()
             self._initialize_table()
-            self.close()
 
     @classmethod
     def create(cls, table: str, path: str) -> Self:
