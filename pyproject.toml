@@ -4,7 +4,7 @@ version = "2024.12.5.1"
 description = "Lightweight NoSQL-like database with SQLite."
 authors = [{name="Gabu", email="gaburyuu@gmail.com"}]
 maintainers = [{name="Gabu", email="gaburyuu@gmail.com"}]
-license = { text = "MIT"
+license = { text = "MIT" }
 dependencies = [
     "pydantic>=2.0.0",
 ]
