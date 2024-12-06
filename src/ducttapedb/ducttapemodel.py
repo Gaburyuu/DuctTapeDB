@@ -79,17 +79,7 @@ class DuctTapeModel(BaseModel):
 
     @classmethod
     def bulk_save(cls, models: list["DuctTapeModel"]) -> list[int]:
-        """Save multiple models at once using a batch operation.
-
-        Args:
-            models (list[DuctTapeModel]): List of model instances to save.
-
-        Returns:
-            list[int]: A list of IDs for the saved models.
-
-        Raises:
-            ValueError: If no database connection is set.
-        """
+        """Save multiple models at once, assigning IDs only to new rows."""
         if cls._db is None:
             raise ValueError("No database connection set.")
 
@@ -101,23 +91,43 @@ class DuctTapeModel(BaseModel):
             data = json(?)
         """
         params = []
+        new_models = []  # Track models without IDs for later assignment
         for model in models:
             data = model.model_dump(exclude={"id"})
             json_data = json.dumps(data)
-            params.append((model.id, json_data, json_data))
 
-        # Execute as a batch
-        cls._db.conn.executemany(query, params)
-        cls._db.conn.commit()
-
-        # Update model IDs and return them
-        saved_ids = []
-        for model in models:
             if model.id is None:
-                # Retrieve the last inserted ID for new records
-                model.id = cls._db.conn.execute(
-                    "SELECT last_insert_rowid()"
-                ).fetchone()[0]
-            saved_ids.append(model.id)
+                # New row: id will be auto-generated
+                params.append((None, json_data, json_data))
+                new_models.append(model)
+            else:
+                # Existing row: keep the provided ID
+                params.append((model.id, json_data, json_data))
 
-        return saved_ids
+        # Begin transaction
+        with cls._db.conn as conn:
+            # Get the current max ID before inserting
+            current_max_id = conn.execute(
+                f"SELECT COALESCE(MAX(id), 0) FROM {cls._db.table}"
+            ).fetchone()[0]
+
+            # Perform the bulk operation
+            conn.executemany(query, params)
+
+            # Get the new max ID after inserting
+            new_max_id = conn.execute(
+                f"SELECT MAX(id) FROM {cls._db.table}"
+            ).fetchone()[0]
+
+        # Assign IDs to newly inserted models
+        if new_models:
+            assert len(new_models) == (
+                new_max_id - current_max_id
+            ), "Mismatch in expected ID assignments."
+            for model, new_id in zip(
+                new_models, range(current_max_id + 1, new_max_id + 1)
+            ):
+                model.id = new_id
+
+        # Return all IDs
+        return [model.id for model in models]
