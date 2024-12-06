@@ -26,7 +26,7 @@ class DuctTapeDB:
         self,
         path: str = "file::memory:?cache=shared",
         table: str = "documents",
-        wal: bool = True,
+        wal: bool = False,
         auto_init=True,
     ):
         self.path = path
