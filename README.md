@@ -30,6 +30,12 @@ pip install ducttapedb
 
 ## Quickstart
 
+https://pypi.org/project/ducttapedb/
+
+```bash
+pip install ducttapedb
+```
+
 ### Here's how you can get started:
 
 1. Create a Database
