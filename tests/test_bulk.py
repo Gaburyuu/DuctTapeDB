@@ -8,15 +8,20 @@ class Slime(DuctTapeModel):
     level: int
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def slime_db():
     """Fixture to create an in-memory database for slimes."""
     db = DuctTapeDB.create_memory("slimes")
-    Slime.set_db(db)
     return db
 
 
-def test_bulk_save(slime_db):
+@pytest.fixture(scope="module", autouse=True)
+def slime_model(slime_db):
+    """Set the DB for ExampleModel once for the module."""
+    Slime.set_db(slime_db)
+
+
+def test_bulk_save():
     """Test bulk_save with multiple Slime instances."""
     slimes = [
         Slime(name="Slime 1", level=10),

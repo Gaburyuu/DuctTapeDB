@@ -18,10 +18,6 @@ class DuctTapeDB:
             In memory DBs will go awa
     """
 
-    # apparently I can have each thread have it's own connection
-    # am i using threading correctly i wonder
-    _local = local()
-
     def __init__(
         self,
         path: str = "file::memory:?cache=shared",
@@ -29,6 +25,7 @@ class DuctTapeDB:
         wal: bool = False,
         auto_init=True,
     ):
+        self._local = local()
         self.path = path
         self.table = table
         self.wal = wal
@@ -37,9 +34,9 @@ class DuctTapeDB:
             self._initialize_table()
 
     @classmethod
-    def create(cls, table: str, path: str) -> Self:
+    def create(cls, table: str, path: str, wal: bool = False) -> Self:
         """Super basic factory"""
-        return cls(path=path, table=table)
+        return cls(path=path, table=table, wal=wal)
 
     @classmethod
     def create_memory(
@@ -72,6 +69,7 @@ class DuctTapeDB:
         if not hasattr(self._local, "connection") or self._local.connection is None:
             try:
                 # Create connection
+                print("path is", self.path)
                 self._local.connection = sqlite3.connect(
                     self.path, uri=True, check_same_thread=False
                 )
@@ -79,6 +77,11 @@ class DuctTapeDB:
                 # Set SQLite PRAGMAs
                 self._local.connection.execute("PRAGMA foreign_keys = ON;")
                 self._local.connection.execute("PRAGMA busy_timeout = 5000;")
+                self._local.connection.execute("PRAGMA cache_size = -64000;")
+                self._local.connection.execute("PRAGMA synchronous = NORMAL;")
+                self._local.connection.execute("PRAGMA wal_autocheckpoint = 1000;")
+                self._local.connection.execute("PRAGMA mmap_size = 268435456;")
+                self._local.connection.execute("PRAGMA temp_store = MEMORY;")
                 if self.wal:
                     mode = self._local.connection.execute(
                         "PRAGMA journal_mode = WAL;"
@@ -87,9 +90,11 @@ class DuctTapeDB:
                         raise RuntimeError(
                             f"Failed to enable WAL mode. Current mode: {mode}"
                         )
-
+                    self._local.connection.execute("PRAGMA wal_autocheckpoint = 1000;")
             except sqlite3.Error as e:
                 raise RuntimeError(f"Failed to connect to the database: {e}")
+            except Exception as e:
+                raise RuntimeError(f"Unhandled error {e}")
 
         return self._local.connection
 
@@ -145,6 +150,9 @@ class DuctTapeDB:
 
         id_value = document.get("id")
 
+        print(f"Upserting document: {document}")
+        print(f"Document ID: {document.get('id')}")
+
         if id_value is None:
             # Serialize the entire document when no ID is provided
             json_data = json.dumps(document)
@@ -173,6 +181,7 @@ class DuctTapeDB:
         try:
             cursor = self.conn.execute(query, params)
             self.conn.commit()
+            print(f"Rows affected: {cursor.rowcount}")
             return cursor.lastrowid if id_value is None else id_value
         except sqlite3.Error as e:
             self.conn.rollback()
@@ -287,7 +296,6 @@ class DuctTapeDB:
                 params += [cond["field"] for cond in where_values] + [
                     cond["value"] for cond in where_values
                 ]
-
             cursor = self.conn.execute(query, params)
             result = cursor.fetchone()
             return result[0] if result else None
