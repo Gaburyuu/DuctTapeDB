@@ -1,4 +1,3 @@
-import pytest
 from src import DuctTapeModel, DuctTapeDB
 
 # Create DB instances for each table in the same database file

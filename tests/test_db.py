@@ -250,7 +250,6 @@ def test_search_existing_key_value(dq_db):
 
     # Insert the document
     with dq_db as db:
-
         # Test search
         results = db.search("name", slime["data"]["name"])
         assert (
