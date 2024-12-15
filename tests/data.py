@@ -54,6 +54,12 @@ class Data:
         {"name": "King Slime", "type": "Slime", "level": 20, "hp": 50},
     ]
 
+    monster_list_beasts = [
+        {"name": "Bewarewolf", "type": "Beast", "level": 1, "hp": 5},
+        {"name": "Scarewolf", "type": "Beast", "level": 10, "hp": 4},
+        {"name": "Tearwolf", "type": "Beast", "level": 20, "hp": 50},
+    ]
+
     monster_list_dragons = [
         {"name": "Tortagon", "type": "Dragon", "level": 1, "hp": 5},
         {"name": "Gasgon", "type": "Dragon", "level": 10, "hp": 4},

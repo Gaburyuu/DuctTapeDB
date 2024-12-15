@@ -7,10 +7,17 @@ import json
 import threading
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def memory_db() -> DuctTapeDB:
     """Fixture to provide an in-memory DuctTapeDB instance."""
-    db = DuctTapeDB.create_memory()
+    db = DuctTapeDB.create_memory(table="module")
+    return db
+
+
+@pytest.fixture(scope="function")
+def memory_db_func() -> DuctTapeDB:
+    """Fixture to provide an in-memory DuctTapeDB instance for funcs."""
+    db = DuctTapeDB.create_memory(table="function")
     return db
 
 
@@ -37,7 +44,7 @@ def file_db() -> DuctTapeDB:
 def thread_db() -> DuctTapeDB:
     """Fixture to create a file-based NoSQLLiteDB instance."""
     db_path = get_temp_db_path(prefix="thread")
-    db = DuctTapeDB.create("thread", db_path)
+    db = DuctTapeDB.create("thread", db_path, wal=True)
 
     yield db
 
@@ -131,7 +138,6 @@ def test_insert_hero(dq_db):
             f"SELECT data FROM {db.table} WHERE id = ?", (hero["id"],)
         ).fetchone()
         assert result is not None, "Hero document should be present in the database."
-        print("result", result)
         retrieved_hero = json.loads(result[0])
         assert (
             retrieved_hero["name"] == hero_data["name"]
@@ -269,12 +275,12 @@ def test_search_nonexistent_key_value(dq_db):
         ), "The search method should return an empty list for a non-existent key-value pair."
 
 
-def test_aggregate_safe(memory_db):
+def test_aggregate_safe(memory_db_func):
     """Test the aggregate function with parameterized conditions."""
 
     # Insert monsters into the database
-    with memory_db as db:
-        memory_db._initialize_table()
+    with memory_db_func as db:
+        db._initialize_table()
         for monster in Data.monster_list:
             db.upsert_document(monster)
 
@@ -289,18 +295,18 @@ def test_aggregate_safe(memory_db):
         assert total_hp == 59, f"Expected total HP to be 59, got {total_hp}"
 
 
-def test_aggregate_where_raw(memory_db):
+def test_aggregate_where_raw(memory_db_func):
     """Test the aggregate function with raw WHERE clause (use cautiously)."""
 
     # Insert monsters into the database
-    with memory_db as db:
-        memory_db._initialize_table()
-        for monster in Data.monster_list:
+    with memory_db_func as db:
+        db._initialize_table()
+        for monster in Data.monster_list_beasts:
             db.upsert_document(monster)
 
         # Aggregate: COUNT monsters with a raw WHERE clause
         count = db.aggregate(
-            "COUNT", "level", where_raw="json_extract(data, '$.type') = 'Monster'"
+            "COUNT", "level", where_raw="json_extract(data, '$.type') = 'Beast'"
         )
         assert count == 3, f"Expected 3 monsters, got {count}"
 

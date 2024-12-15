@@ -10,7 +10,7 @@ import threading
 @pytest.fixture(scope="module")
 def memory_db() -> DuctTapeDB:
     """Fixture to provide an in-memory DuctTapeDB instance across the module."""
-    db = DuctTapeDB.create_memory()
+    db = DuctTapeDB.create_memory(table="module_nc")
     db._initialize_table()
     return db
 
@@ -18,7 +18,7 @@ def memory_db() -> DuctTapeDB:
 @pytest.fixture(scope="function")
 def memory_db_func() -> DuctTapeDB:
     """Fixture to provide an in-memory DuctTapeDB instance for funcs."""
-    db = DuctTapeDB.create_memory()
+    db = DuctTapeDB.create_memory(table="function_nc")
     db._initialize_table()
     return db
 
@@ -266,6 +266,10 @@ def test_aggregate_safe(memory_db_func):
     for monster in Data.monster_list:
         memory_db_func.upsert_document(monster)
 
+    count = memory_db_func.aggregate(
+        "COUNT", "level", where_raw="json_extract(data, '$.type') = 'Dragon'"
+    )
+
     # Aggregate: COUNT monsters with level > 5
     count = memory_db_func.aggregate(
         "COUNT", "level", where_values=[{"field": "level", "sign": ">", "value": 5}]
@@ -280,18 +284,19 @@ def test_aggregate_safe(memory_db_func):
 def test_aggregate_where_raw(memory_db_func):
     """Test the aggregate function with raw WHERE clause (use cautiously)."""
 
+    count = memory_db_func.aggregate(
+        "COUNT", "level", where_raw="json_extract(data, '$.type') = 'Dragon'"
+    )
+    print(count)
     # Insert monsters into the database
     for monster in Data.monster_list_dragons:
         memory_db_func.upsert_document(monster)
-        print(monster)
 
     # Aggregate: COUNT monsters with a raw WHERE clause
     count = memory_db_func.aggregate(
         "COUNT", "level", where_raw="json_extract(data, '$.type') = 'Dragon'"
     )
-    print(count)
-    result = memory_db_func.conn.execute("SELECT * from documents;")
-    print(result.fetchall())
+    result = memory_db_func.conn.execute("SELECT * from function_nc;")
     assert count == 3, f"Expected 3 monsters, got {count}"
 
     # Quick and dirty SQL injection test
@@ -299,7 +304,7 @@ def test_aggregate_where_raw(memory_db_func):
         RuntimeError, match="You can only execute one statement at a time"
     ):
         memory_db_func.aggregate(
-            "COUNT", "level", where_raw="1=1; DROP TABLE documents;"
+            "COUNT", "level", where_raw="1=1; DROP TABLE function_nc;"
         )
 
 

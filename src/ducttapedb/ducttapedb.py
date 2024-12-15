@@ -69,7 +69,6 @@ class DuctTapeDB:
         if not hasattr(self._local, "connection") or self._local.connection is None:
             try:
                 # Create connection
-                print("path is", self.path)
                 self._local.connection = sqlite3.connect(
                     self.path, uri=True, check_same_thread=False
                 )
@@ -150,9 +149,6 @@ class DuctTapeDB:
 
         id_value = document.get("id")
 
-        print(f"Upserting document: {document}")
-        print(f"Document ID: {document.get('id')}")
-
         if id_value is None:
             # Serialize the entire document when no ID is provided
             json_data = json.dumps(document)
@@ -181,7 +177,6 @@ class DuctTapeDB:
         try:
             cursor = self.conn.execute(query, params)
             self.conn.commit()
-            print(f"Rows affected: {cursor.rowcount}")
             return cursor.lastrowid if id_value is None else id_value
         except sqlite3.Error as e:
             self.conn.rollback()
