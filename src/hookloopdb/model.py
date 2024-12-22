@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from .table import HookLoopTable
 from typing import Any
 import json
+from aiosqlite import Connection as Aioconnection
 
 T = TypeVar("T", bound="HookLoopModel")
 
@@ -32,18 +33,56 @@ class HookLoopModel(BaseModel):
         self.id = await self._table.upsert({"id": self.id, "data": data})
         return self.id
 
-    async def bulk_upsert(self, documents: list[dict[Any, Any]]):
+    @classmethod
+    async def bulk_save(cls, models: list["HookLoopModel"]) -> list[int]:
+        """Save multiple models at once, assigning IDs only to new rows."""
+        if not cls._table:
+            raise ValueError("No table is set for this model.")
+
+        # Prepare data for batch insert/update
         query = f"""
-            INSERT INTO {self.table_name} (id, data)
+            INSERT INTO {cls._table.table_name} (id, data)
             VALUES (?, json(?))
-            ON CONFLICT (id) DO UPDATE SET data = json(?)
+            ON CONFLICT (id) DO UPDATE SET
+            data = json(?)
         """
         params = []
-        for doc in documents:
-            id_value = doc.get("id")
-            json_data = json.dumps(doc.get("data", {}))
-            params.append((id_value, json_data, json_data))
+        new_models = []  # Track models without IDs for later assignment
+        for model in models:
+            data = model.model_dump_json(exclude={"id"})
 
-        async with self.controller.connection as conn:
-            await conn.executemany(query, params)
-            await conn.commit()
+            if model.id is None:
+                # New row: id will be auto-generated
+                params.append((None, data, data))
+                new_models.append(model)
+            else:
+                # Existing row: keep the provided ID
+                params.append((model.id, data, data))
+
+        # Begin transaction
+        with cls._table.connection as conn:
+            # Get the current max ID before inserting
+            current_max_id = conn.execute(
+                f"SELECT COALESCE(MAX(id), 0) FROM {cls._table.table_name}"
+            ).fetchone()[0]
+
+            # Perform the bulk operation
+            conn.executemany(query, params)
+
+            # Get the new max ID after inserting
+            new_max_id = conn.execute(
+                f"SELECT MAX(id) FROM {cls._table.table_name}"
+            ).fetchone()[0]
+
+        # Assign IDs to newly inserted models
+        if new_models:
+            assert len(new_models) == (
+                new_max_id - current_max_id
+            ), "Mismatch in expected ID assignments."
+            for model, new_id in zip(
+                new_models, range(current_max_id + 1, new_max_id + 1)
+            ):
+                model.id = new_id
+
+        # Return all IDs
+        return [model.id for model in models]

@@ -1,12 +1,17 @@
 import json
 from typing import Any
 from .controller import AsyncSQLiteController
+from aiosqlite import Connection as Aioconnection
 
 
 class HookLoopTable:
     def __init__(self, controller: AsyncSQLiteController, table_name: str):
         self.controller = controller
         self.table_name = table_name
+
+    @property
+    def connection(self) -> Aioconnection:
+        return self.controller.connection
 
     async def initialize(self, indexes: list[str] = None):
         """Initialize the table with optional JSON indexes."""
