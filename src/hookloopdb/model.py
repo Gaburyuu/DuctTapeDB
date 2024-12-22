@@ -1,16 +1,18 @@
 from typing import TypeVar, Type, Optional
-from pydantic import BaseModel, ValidationError
-from .table import AsyncDuctTapeTable
+from pydantic import BaseModel
+from .table import HookLoopTable
+from typing import Any
+import json
 
-T = TypeVar("T", bound="AsyncDuctTapeModel")
+T = TypeVar("T", bound="HookLoopModel")
 
 
-class AsyncDuctTapeModel(BaseModel):
+class HookLoopModel(BaseModel):
     id: Optional[int] = None
-    _table: Optional[AsyncDuctTapeTable] = None
+    _table: Optional[HookLoopTable] = None
 
     @classmethod
-    def set_table(cls, table: AsyncDuctTapeTable):
+    def set_table(cls, table: HookLoopTable):
         cls._table = table
 
     @classmethod
@@ -20,7 +22,8 @@ class AsyncDuctTapeModel(BaseModel):
         document = await cls._table.find(doc_id)
         if not document:
             raise ValueError(f"Document with id={doc_id} not found.")
-        return cls(id=document["id"], **document["data"])
+        data = {"id": document["id"], **document["data"]}
+        return cls.model_validate(data)
 
     async def save(self) -> int:
         if not self._table:
@@ -28,3 +31,19 @@ class AsyncDuctTapeModel(BaseModel):
         data = self.model_dump(exclude={"id"})
         self.id = await self._table.upsert({"id": self.id, "data": data})
         return self.id
+
+    async def bulk_upsert(self, documents: list[dict[Any, Any]]):
+        query = f"""
+            INSERT INTO {self.table_name} (id, data)
+            VALUES (?, json(?))
+            ON CONFLICT (id) DO UPDATE SET data = json(?)
+        """
+        params = []
+        for doc in documents:
+            id_value = doc.get("id")
+            json_data = json.dumps(doc.get("data", {}))
+            params.append((id_value, json_data, json_data))
+
+        async with self.controller.connection as conn:
+            await conn.executemany(query, params)
+            await conn.commit()

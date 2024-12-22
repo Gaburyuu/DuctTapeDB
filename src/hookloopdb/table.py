@@ -3,7 +3,7 @@ from typing import Any
 from .controller import AsyncSQLiteController
 
 
-class AsyncDuctTapeTable:
+class HookLoopTable:
     def __init__(self, controller: AsyncSQLiteController, table_name: str):
         self.controller = controller
         self.table_name = table_name

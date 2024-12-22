@@ -93,16 +93,15 @@ class DuctTapeModel(BaseModel):
         params = []
         new_models = []  # Track models without IDs for later assignment
         for model in models:
-            data = model.model_dump(exclude={"id"})
-            json_data = json.dumps(data)
+            data = model.model_dump_json(exclude={"id"})
 
             if model.id is None:
                 # New row: id will be auto-generated
-                params.append((None, json_data, json_data))
+                params.append((None, data, data))
                 new_models.append(model)
             else:
                 # Existing row: keep the provided ID
-                params.append((model.id, json_data, json_data))
+                params.append((model.id, data, data))
 
         # Begin transaction
         with cls._db.conn as conn:
