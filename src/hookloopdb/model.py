@@ -26,6 +26,17 @@ class HookLoopModel(BaseModel):
         data = {"id": document["id"], **document["data"]}
         return cls.model_validate(data)
 
+    @classmethod
+    async def from_id_and(cls: Type[T], doc_id: int, key: str, value: str) -> T:
+        """matches id AND another key, value"""
+        if not cls._table:
+            raise ValueError("No table is set for this model.")
+        document = await cls._table.find(doc_id)
+        if not document:
+            raise ValueError(f"Document with id={doc_id} not found.")
+        data = {"id": document["id"], **document["data"]}
+        return cls.model_validate(data)
+
     async def save(self) -> int:
         if not self._table:
             raise ValueError("No table is set for this model.")

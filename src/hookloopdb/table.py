@@ -58,3 +58,24 @@ class HookLoopTable:
         if result:
             return {"id": result[0][0], "data": json.loads(result[0][1])}
         return None
+
+    async def search(self, key: str, value: Any) -> list[dict]:
+        """Search for documents by a JSON key-value pair.
+
+        Args:
+            key (str): The JSON key to search for.
+            value (Any): The value to match against the JSON key.
+
+        Returns:
+            list[dict]: A list of matching documents as dictionaries.
+        """
+        query = f"""
+            SELECT id, data
+            FROM {self.table}
+            WHERE json_extract(data, '$.' || ?) = ?
+        """
+        cursor = self.connection.execute(query, (key, value))
+        results = [
+            {"id": row[0], "data": json.loads(row[1])} for row in cursor.fetchall()
+        ]
+        return results
