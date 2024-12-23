@@ -59,7 +59,7 @@ class HookLoopTable:
             return {"id": result[0][0], "data": json.loads(result[0][1])}
         return None
 
-    async def search(self, key: str, value: Any) -> list[dict]:
+    async def _search(self, key: str, value: Any) -> list[dict]:
         """Search for documents by a JSON key-value pair.
 
         Args:
@@ -77,5 +77,38 @@ class HookLoopTable:
         cursor = self.connection.execute(query, (key, value))
         results = [
             {"id": row[0], "data": json.loads(row[1])} for row in cursor.fetchall()
+        ]
+        return results
+
+    async def search(self, conditions: dict[str, Any]) -> list[dict]:
+        """
+        Search for documents by multiple JSON key-value pairs.
+
+        Args:
+            conditions (dict[str, Any]): A dictionary of JSON key-value pairs to match.
+
+        Returns:
+            list[dict]: A list of matching documents as dictionaries.
+        """
+        if not conditions:
+            raise ValueError("Conditions cannot be empty.")
+
+        # Build the WHERE clause dynamically
+        where_clauses = [
+            f"json_extract(data, '$.' || ?) = ?" for _ in conditions.keys()
+        ]
+        where_statement = " AND ".join(where_clauses)
+
+        query = f"""
+            SELECT id, data
+            FROM {self.table}
+            WHERE {where_statement}
+        """
+        params = [item for pair in conditions.items() for item in pair]
+
+        cursor = await self.controller.connection.execute(query, params)
+        results = [
+            {"id": row[0], "data": json.loads(row[1])}
+            for row in await cursor.fetchall()
         ]
         return results

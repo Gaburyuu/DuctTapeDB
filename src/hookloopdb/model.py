@@ -27,13 +27,51 @@ class HookLoopModel(BaseModel):
         return cls.model_validate(data)
 
     @classmethod
-    async def from_id_and(cls: Type[T], doc_id: int, key: str, value: str) -> T:
-        """matches id AND another key, value"""
+    async def from_id_and(
+        cls: Type[T], doc_id: int, conditions: dict[str, Any] = None
+    ) -> T:
+        """
+        Retrieve a document by ID, ensuring it meets additional optional conditions.
+
+        Args:
+            doc_id (int): The unique ID of the record in the table.
+            conditions (dict[str, Any], optional): Additional JSON key-value conditions to match.
+                - Keys represent JSON fields within the document.
+                - Values represent the required values for those fields.
+                - If no conditions are provided, only the ID is used for matching.
+
+        Returns:
+            T: An instance of the model if the document is found and conditions are satisfied.
+
+        Raises:
+            ValueError: If:
+                - No table is set for the model.
+                - No document exists with the given ID.
+                - The document does not meet the specified conditions.
+
+        Example Usage:
+            # Retrieve a document by ID with additional conditions
+            model_instance = await HookLoopModel.from_id_and(
+                doc_id=42,
+                conditions={"status": "active", "role": "admin"}
+            )
+            print(model_instance)
+        """
         if not cls._table:
             raise ValueError("No table is set for this model.")
-        document = await cls._table.find(doc_id)
-        if not document:
-            raise ValueError(f"Document with id={doc_id} not found.")
+
+        # Combine `id` with additional conditions
+        conditions = {"id": doc_id, **(conditions or {})}
+
+        # Use search for database-side filtering
+        results = await cls._table.search(conditions)
+        if not results:
+            raise ValueError(
+                f"No document found with id={doc_id} and conditions={conditions}"
+            )
+
+        # Use the first result (id should be unique)
+        document = results[0]
         data = {"id": document["id"], **document["data"]}
         return cls.model_validate(data)
 
