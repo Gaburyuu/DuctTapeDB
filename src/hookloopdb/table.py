@@ -59,7 +59,7 @@ class HookLoopTable:
             return {"id": result[0][0], "data": json.loads(result[0][1])}
         return None
 
-    async def _search(self, key: str, value: Any) -> list[dict]:
+    async def search_basic(self, key: str, value: Any) -> list[dict]:
         """Search for documents by a JSON key-value pair.
 
         Args:
@@ -93,18 +93,54 @@ class HookLoopTable:
         if not conditions:
             raise ValueError("Conditions cannot be empty.")
 
-        # Build the WHERE clause dynamically
-        where_clauses = [
-            f"json_extract(data, '$.' || ?) = ?" for _ in conditions.keys()
-        ]
-        where_statement = " AND ".join(where_clauses)
-
         query = f"""
             SELECT id, data
-            FROM {self.table}
+            FROM {self.table_name}
+            WHERE {" AND ".join(["json_extract(data, '$.' || ?) = ?"] * len(conditions))}
+        """
+
+        params = [item for pair in conditions.items() for item in pair]
+
+        cursor = await self.controller.connection.execute(query, params)
+        results = [
+            {"id": row[0], "data": json.loads(row[1])}
+            for row in await cursor.fetchall()
+        ]
+        return results
+
+    async def search_advanced(self, conditions: list[dict[str, Any]]) -> list[dict]:
+        """
+        Search for documents using advanced conditions.
+
+        Args:
+            conditions (list[dict[str, Any]]): A list of conditions.
+                Each condition should be a dictionary with the keys:
+                    - "key": The JSON key to search.
+                    - "value": The value to match.
+                    - "operator": The comparison operator (e.g., '=', '!=', '<', '>').
+
+        Returns:
+            list[dict]: A list of matching documents as dictionaries.
+        """
+        if not conditions:
+            raise ValueError("Conditions cannot be empty.")
+
+        where_clauses = []
+        params = []
+
+        for condition in conditions:
+            key = condition.get("key")
+            value = condition.get("value")
+            operator = condition.get("operator", "=")
+            where_clauses.append(f"json_extract(data, '$.' || ?) {operator} ?")
+            params.extend([key, value])
+
+        where_statement = " AND ".join(where_clauses)
+        query = f"""
+            SELECT id, data
+            FROM {self.table_name}
             WHERE {where_statement}
         """
-        params = [item for pair in conditions.items() for item in pair]
 
         cursor = await self.controller.connection.execute(query, params)
         results = [

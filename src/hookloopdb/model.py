@@ -84,11 +84,18 @@ class HookLoopModel(BaseModel):
 
     @classmethod
     async def bulk_save(cls, models: list["HookLoopModel"]) -> list[int]:
-        """Save multiple models at once, assigning IDs only to new rows."""
+        """
+        Save multiple models at once using a single transaction, assigning IDs only to new rows.
+
+        Args:
+            models (list[HookLoopModel]): List of models to save.
+
+        Returns:
+            list[int]: A list of IDs for the saved models.
+        """
         if not cls._table:
             raise ValueError("No table is set for this model.")
 
-        # Prepare data for batch insert/update
         query = f"""
             INSERT INTO {cls._table.table_name} (id, data)
             VALUES (?, json(?))
@@ -96,42 +103,30 @@ class HookLoopModel(BaseModel):
             data = json(?)
         """
         params = []
-        new_models = []  # Track models without IDs for later assignment
-        for model in models:
-            data = model.model_dump_json(exclude={"id"})
+        new_models = []
 
+        for model in models:
+            json_data = model.model_dump_json(exclude={"id"})
             if model.id is None:
-                # New row: id will be auto-generated
-                params.append((None, data, data))
+                params.append((None, json_data, json_data))
                 new_models.append(model)
             else:
-                # Existing row: keep the provided ID
-                params.append((model.id, data, data))
+                params.append((model.id, json_data, json_data))
 
-        # Begin transaction
-        with cls._table.connection as conn:
-            # Get the current max ID before inserting
-            current_max_id = conn.execute(
-                f"SELECT COALESCE(MAX(id), 0) FROM {cls._table.table_name}"
-            ).fetchone()[0]
+        async with cls._table.connection as conn:
+            async with conn.execute("BEGIN TRANSACTION"):
+                await conn.executemany(query, params)
 
-            # Perform the bulk operation
-            conn.executemany(query, params)
+                # Assign IDs to new models
+                if new_models:
+                    result = await conn.execute(
+                        f"SELECT id FROM {cls._table.table_name} ORDER BY id DESC LIMIT ?",
+                        (len(new_models),),
+                    )
+                    new_ids = [row[0] for row in await result.fetchall()]
+                    for model, new_id in zip(new_models, reversed(new_ids)):
+                        model.id = new_id
 
-            # Get the new max ID after inserting
-            new_max_id = conn.execute(
-                f"SELECT MAX(id) FROM {cls._table.table_name}"
-            ).fetchone()[0]
+            await conn.commit()
 
-        # Assign IDs to newly inserted models
-        if new_models:
-            assert len(new_models) == (
-                new_max_id - current_max_id
-            ), "Mismatch in expected ID assignments."
-            for model, new_id in zip(
-                new_models, range(current_max_id + 1, new_max_id + 1)
-            ):
-                model.id = new_id
-
-        # Return all IDs
         return [model.id for model in models]

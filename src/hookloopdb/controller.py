@@ -3,12 +3,15 @@ import aiosqlite
 
 class AsyncSQLiteController:
     def __init__(self, db_path: str):
-        self.db_path = db_path
+        self.db_path: str = db_path
         self.connection: aiosqlite.Connection = None
 
-    async def connect(self):
+    async def connect(self, uri: bool = False):
         """Establish a connection to the SQLite database."""
-        self.connection = await aiosqlite.connect(self.db_path)
+        if self.connection:
+            return
+
+        self.connection = await aiosqlite.connect(self.db_path, uri=uri)
         # Switch to Write-Ahead Logging (WAL) mode
         # WHAT: This changes SQLite's journaling mode to WAL, which separates reads and writes into two files.
         #       This allows concurrent reads while writes are being performed in the WAL file.
@@ -51,8 +54,23 @@ class AsyncSQLiteController:
     async def executemany(self, query: str, param_list):
         """Execute multiple queries in a batch."""
         await self.connection.executemany(query, param_list)
-        await self.connection.commit()
 
     async def execute_script(self, script: str):
         """Execute multiple SQL commands as a script."""
         await self.connection.executescript(script)
+
+    @classmethod
+    async def create_memory(cls, shared_cache: bool = False) -> "AsyncSQLiteController":
+        """
+        Factory method to create an in-memory AsyncSQLiteController.
+
+        Args:
+            shared_cache (bool): If True, creates a shared-cache in-memory DB.
+
+        Returns:
+            AsyncSQLiteController: An instance of AsyncSQLiteController with an in-memory database.
+        """
+        db_path = "file::memory:?cache=shared" if shared_cache else ":memory:"
+        controller = cls(db_path)
+        await controller.connect(uri=shared_cache)
+        return controller
