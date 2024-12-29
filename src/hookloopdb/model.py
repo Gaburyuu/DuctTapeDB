@@ -79,6 +79,7 @@ class HookLoopModel(BaseModel):
         if not self._table:
             raise ValueError("No table is set for this model.")
         data = self.model_dump(exclude={"id"})
+        print("data", data)
         self.id = await self._table.upsert({"id": self.id, "data": data})
         return self.id
 
@@ -93,6 +94,11 @@ class HookLoopModel(BaseModel):
         Returns:
             list[int]: A list of IDs for the saved models.
         """
+        if not all(isinstance(model, cls) for model in models):
+            raise ValueError(
+                "All models must be instances of the calling class or its subclasses."
+            )
+
         if not cls._table:
             raise ValueError("No table is set for this model.")
 
@@ -113,20 +119,20 @@ class HookLoopModel(BaseModel):
             else:
                 params.append((model.id, json_data, json_data))
 
-        async with cls._table.connection as conn:
-            async with conn.execute("BEGIN TRANSACTION"):
-                await conn.executemany(query, params)
+        conn = cls._table.connection
+        async with conn.execute("BEGIN TRANSACTION"):
+            await conn.executemany(query, params)
 
-                # Assign IDs to new models
-                if new_models:
-                    result = await conn.execute(
-                        f"SELECT id FROM {cls._table.table_name} ORDER BY id DESC LIMIT ?",
-                        (len(new_models),),
-                    )
-                    new_ids = [row[0] for row in await result.fetchall()]
-                    for model, new_id in zip(new_models, reversed(new_ids)):
-                        model.id = new_id
+            # Assign IDs to new models
+            if new_models:
+                result = await conn.execute(
+                    f"SELECT id FROM {cls._table.table_name} ORDER BY id DESC LIMIT ?",
+                    (len(new_models),),
+                )
+                new_ids = [row[0] for row in await result.fetchall()]
+                for model, new_id in zip(new_models, reversed(new_ids)):
+                    model.id = new_id
 
-            await conn.commit()
+        await conn.commit()
 
         return [model.id for model in models]

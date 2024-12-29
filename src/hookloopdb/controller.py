@@ -48,8 +48,7 @@ class AsyncSQLiteController:
 
     async def execute(self, query: str, params=None):
         """Execute a single query."""
-        async with self.connection.execute(query, params or ()) as cursor:
-            return await cursor.fetchall()
+        return await self.connection.execute(query, params or ())
 
     async def executemany(self, query: str, param_list):
         """Execute multiple queries in a batch."""
@@ -58,6 +57,9 @@ class AsyncSQLiteController:
     async def execute_script(self, script: str):
         """Execute multiple SQL commands as a script."""
         await self.connection.executescript(script)
+
+    async def commit(self):
+        await self.connection.commit()
 
     @classmethod
     async def create_memory(cls, shared_cache: bool = False) -> "AsyncSQLiteController":

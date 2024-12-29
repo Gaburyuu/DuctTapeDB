@@ -6,6 +6,12 @@ from src import (
     HookLoopTable,
 )
 from src.hookloopdb.controller import AsyncSQLiteController
+from typing import Any, Optional
+
+
+class HookLoopModelTest(HookLoopModel):
+    key1: Optional[str] = None
+    key2: Optional[int] = None
 
 
 @pytest_asyncio.fixture()
@@ -79,7 +85,7 @@ async def test_delete_table(setup_table):
 @pytest.mark.asyncio
 async def test_model_save(setup_models):
     """Test saving a HookLoopModel instance."""
-    model = HookLoopModel(id=None, data={"key1": "value4"})
+    model = HookLoopModelTest(id=None, key1="value4")
     saved_id = await model.save()
     assert saved_id is not None
 
@@ -87,21 +93,29 @@ async def test_model_save(setup_models):
 @pytest.mark.asyncio
 async def test_model_from_id(setup_models):
     """Test retrieving a model by ID using from_id."""
-    model = HookLoopModel(id=None, data={"key1": "value5"})
+    model = HookLoopModelTest(id=None, key1="value5")
     saved_id = await model.save()
-    fetched_model = await HookLoopModel.from_id(saved_id)
+    fetched_model = await HookLoopModelTest.from_id(saved_id)
     assert fetched_model.id == saved_id
-    assert fetched_model.data["key1"] == "value5"
+    assert fetched_model.key1 == "value5"
 
 
 @pytest.mark.asyncio
 async def test_model_from_id_and(setup_models):
     """Test retrieving a model by ID with additional conditions using from_id_and."""
-    model = HookLoopModel(id=None, data={"key1": "value6", "key2": 60})
+    model = HookLoopModelTest(id=None, key1="value6", key2=60)
     saved_id = await model.save()
+    print(saved_id)
+    print(model)
+
+    async with HookLoopModelTest._table.controller.connection.execute(
+        "SELECT id, data FROM test_table"
+    ) as cursor:
+        rows = await cursor.fetchall()
+        print("Stored Rows:", rows)
 
     # Successful retrieval with matching conditions
-    fetched_model = await HookLoopModel.from_id_and(
+    fetched_model = await HookLoopModelTest.from_id_and(
         doc_id=saved_id, conditions={"key1": "value6", "key2": 60}
     )
     assert fetched_model.id == saved_id
@@ -109,7 +123,7 @@ async def test_model_from_id_and(setup_models):
 
     # Unsuccessful retrieval with non-matching conditions
     with pytest.raises(ValueError):
-        await HookLoopModel.from_id_and(
+        await HookLoopModelTest.from_id_and(
             doc_id=saved_id, conditions={"key1": "value6", "key2": 100}
         )
 
@@ -118,10 +132,46 @@ async def test_model_from_id_and(setup_models):
 async def test_model_bulk_save(setup_models):
     """Test bulk saving multiple HookLoopModel instances."""
     models = [
-        HookLoopModel(id=None, data={"key1": "bulk1"}),
-        HookLoopModel(id=None, data={"key1": "bulk2"}),
+        HookLoopModelTest(id=None, key1="bulk1"),
+        HookLoopModelTest(id=None, key1="bulk1"),
     ]
-    ids = await HookLoopModel.bulk_save(models)
+    ids = await HookLoopModelTest.bulk_save(models)
+    assert len(ids) == len(models)
+
+    # Verify IDs were assigned
+    for model, model_id in zip(models, ids):
+        assert model.id == model_id
+
+
+@pytest_asyncio.fixture()
+async def model_tester_table_setup():
+    """Fixture to initialize HookLoopTable."""
+    controller = await AsyncSQLiteController.create_memory(shared_cache=True)
+    table = HookLoopTable(controller, "test_table")
+    await table.initialize(indexes=["key1", "key2"])
+    yield table
+    await controller.close()
+
+
+class ModelTesterModel(HookLoopModel):
+    name: str
+
+
+@pytest_asyncio.fixture
+async def model_tester_model_setup(model_tester_table_setup):
+    """Fixture to initialize HookLoopModel with the table."""
+    ModelTesterModel.set_table(model_tester_table_setup)
+    yield
+
+
+@pytest.mark.asyncio
+async def test_bulk_save_inherited_model(model_tester_model_setup):
+    """Test bulk saving instances of an inherited model."""
+    models = [
+        ModelTesterModel(id=None, name="name number 1"),
+        ModelTesterModel(id=None, name="name number 2"),
+    ]
+    ids = await ModelTesterModel.bulk_save(models)
     assert len(ids) == len(models)
 
     # Verify IDs were assigned
