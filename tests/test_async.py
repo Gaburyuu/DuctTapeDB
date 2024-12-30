@@ -32,6 +32,16 @@ async def setup_models(setup_table):
 
 
 @pytest.mark.asyncio
+async def test_index_creation(setup_table):
+    await setup_table.initialize(indexes=["key1"])
+    indexes = await setup_table.controller.connection.execute(
+        "PRAGMA index_list('test_table');"
+    )
+    rows = await indexes.fetchall()
+    assert any("idx_test_table_key1" in row[1] for row in rows)
+
+
+@pytest.mark.asyncio
 async def test_upsert_table(setup_table):
     """Test upserting a document into the table."""
     doc = {"id": None, "data": {"key1": "value1"}}
@@ -119,7 +129,7 @@ async def test_model_from_id_and(setup_models):
         doc_id=saved_id, conditions={"key1": "value6", "key2": 60}
     )
     assert fetched_model.id == saved_id
-    assert fetched_model.data["key1"] == "value6"
+    assert fetched_model.key1 == "value6"
 
     # Unsuccessful retrieval with non-matching conditions
     with pytest.raises(ValueError):

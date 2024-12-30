@@ -151,10 +151,14 @@ class HookLoopTable:
         where_clauses = []
         params = []
 
+        ALLOWED_OPERATORS = {"=", "!=", "<", ">", "<=", ">="}
         for condition in conditions:
             key = condition.get("key")
             value = condition.get("value")
             operator = condition.get("operator", "=")
+            if operator not in ALLOWED_OPERATORS:
+                raise ValueError("Invalid operator.")
+
             where_clauses.append(f"json_extract(data, '$.' || ?) {operator} ?")
             params.extend([key, value])
 
