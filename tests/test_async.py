@@ -34,7 +34,7 @@ async def setup_models(setup_table):
 @pytest.mark.asyncio
 async def test_index_creation(setup_table):
     await setup_table.initialize(indexes=["key1"])
-    indexes = await setup_table.controller.connection.execute(
+    indexes = await setup_table.controller._connection.execute(
         "PRAGMA index_list('test_table');"
     )
     rows = await indexes.fetchall()
@@ -115,14 +115,6 @@ async def test_model_from_id_and(setup_models):
     """Test retrieving a model by ID with additional conditions using from_id_and."""
     model = HookLoopModelTest(id=None, key1="value6", key2=60)
     saved_id = await model.save()
-    print(saved_id)
-    print(model)
-
-    async with HookLoopModelTest._table.controller.connection.execute(
-        "SELECT id, data FROM test_table"
-    ) as cursor:
-        rows = await cursor.fetchall()
-        print("Stored Rows:", rows)
 
     # Successful retrieval with matching conditions
     fetched_model = await HookLoopModelTest.from_id_and(
@@ -187,3 +179,69 @@ async def test_bulk_save_inherited_model(model_tester_model_setup):
     # Verify IDs were assigned
     for model, model_id in zip(models, ids):
         assert model.id == model_id
+
+
+@pytest.mark.asyncio
+async def test_concurrent_connection_reuse():
+    controller = await AsyncSQLiteController.create_memory(shared_cache=True)
+    table = HookLoopTable(controller, "test_table")
+    await table.initialize(indexes=["key1"])
+
+    async def upsert_task(task_id):
+        await table.upsert({"id": task_id, "data": {"key1": f"value{task_id}"}})
+
+    tasks = [upsert_task(i) for i in range(1000)]
+    await asyncio.gather(*tasks)
+
+    # Verify that all tasks completed successfully
+    results = await table.search({"key1": "value5"})
+    assert len(results) == 1
+    assert results[0]["data"]["key1"] == "value5"
+
+
+@pytest.mark.asyncio
+async def test_bulk_save_large_batch(setup_models):
+    """Test bulk saving a large batch of models."""
+    large_batch = [HookLoopModelTest(id=None, key1=f"bulk{i}") for i in range(1000)]
+    ids = await HookLoopModelTest.bulk_save(large_batch)
+
+    # Assert all IDs were assigned
+    assert len(ids) == len(large_batch)
+    for model, model_id in zip(large_batch, ids):
+        assert model.id == model_id
+
+    # Verify data integrity for a subset
+    sample = await HookLoopModelTest._table.search({"key1": "bulk500"})
+    assert len(sample) == 1
+    assert sample[0]["data"]["key1"] == "bulk500"
+
+
+@pytest.mark.asyncio
+async def test_search_advanced_operators(setup_table):
+    """Test advanced search with all supported operators."""
+    # Insert sample data
+    await setup_table.upsert({"id": 1, "data": {"key1": "value1", "key2": 10}})
+    await setup_table.upsert({"id": 2, "data": {"key1": "value2", "key2": 20}})
+    await setup_table.upsert({"id": 3, "data": {"key1": "value3", "key2": 30}})
+
+    # Test valid operators
+    operators = ["=", "!=", "<", ">", "<=", ">="]
+    conditions = [{"key": "key2", "value": 20, "operator": op} for op in operators]
+    results = []
+    for condition in conditions:
+        result = await setup_table.search_advanced([condition])
+        results.append(result)
+
+    # Assertions for each operator
+    assert len(results[0]) == 1  # '='
+    assert len(results[1]) == 2  # '!='
+    assert len(results[2]) == 1  # '<'
+    assert len(results[3]) == 1  # '>'
+    assert len(results[4]) == 2  # '<='
+    assert len(results[5]) == 2  # '>='
+
+    # Test invalid operator
+    with pytest.raises(ValueError):
+        await setup_table.search_advanced(
+            [{"key": "key2", "value": 20, "operator": "INVALID"}]
+        )

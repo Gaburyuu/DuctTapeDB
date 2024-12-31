@@ -11,7 +11,7 @@ class HookLoopTable:
 
     @property
     def connection(self) -> Aioconnection:
-        return self.controller.connection
+        return self.controller._connection
 
     async def initialize(self, indexes: list[str] = None):
         """Initialize the table with optional JSON indexes."""
@@ -124,7 +124,7 @@ class HookLoopTable:
         print("Query Params:", params)
 
         # Execute the query
-        cursor = await self.controller.connection.execute(query, params)
+        cursor = await self.connection.execute(query, params)
         results = [
             {"id": row[0], "data": json.loads(row[1])}
             for row in await cursor.fetchall()
@@ -151,16 +151,18 @@ class HookLoopTable:
         where_clauses = []
         params = []
 
-        ALLOWED_OPERATORS = {"=", "!=", "<", ">", "<=", ">="}
+        allowed_operators = {"=", "!=", "<", ">", "<=", ">="}
+
         for condition in conditions:
             key = condition.get("key")
             value = condition.get("value")
             operator = condition.get("operator", "=")
-            if operator not in ALLOWED_OPERATORS:
-                raise ValueError("Invalid operator.")
 
-            where_clauses.append(f"json_extract(data, '$.' || ?) {operator} ?")
-            params.extend([key, value])
+            if operator not in allowed_operators:
+                raise ValueError(f"Invalid operator: {operator}")
+
+            where_clauses.append(f"json_extract(data, '$.{key}') {operator} ?")
+            params.append(value)
 
         where_statement = " AND ".join(where_clauses)
         query = f"""
@@ -168,6 +170,9 @@ class HookLoopTable:
             FROM {self.table_name}
             WHERE {where_statement}
         """
+
+        print("query", query)
+        print("params", params)
 
         cursor = await self.controller.execute(query, params)
         results = [
