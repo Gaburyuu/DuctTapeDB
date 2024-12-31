@@ -35,7 +35,6 @@ class HookLoopTable:
         """Insert or update a document."""
         id_value = document.get("id")
         json_data = json.dumps(document.get("data", {}))
-        print("json_data", json_data)
 
         if id_value is None:
             query = f"INSERT INTO {self.table_name} (data) VALUES (json(?))"
@@ -170,9 +169,6 @@ class HookLoopTable:
             FROM {self.table_name}
             WHERE {where_statement}
         """
-
-        print("query", query)
-        print("params", params)
 
         cursor = await self.controller.execute(query, params)
         results = [

@@ -183,20 +183,22 @@ async def test_bulk_save_inherited_model(model_tester_model_setup):
 
 @pytest.mark.asyncio
 async def test_concurrent_connection_reuse():
-    controller = await AsyncSQLiteController.create_memory(shared_cache=True)
-    table = HookLoopTable(controller, "test_table")
-    await table.initialize(indexes=["key1"])
+    try:
+        controller = await AsyncSQLiteController.create_memory(shared_cache=True)
+        table = HookLoopTable(controller, "test_table")
+        await table.initialize(indexes=["key1"])
 
-    async def upsert_task(task_id):
-        await table.upsert({"id": task_id, "data": {"key1": f"value{task_id}"}})
+        async def upsert_task(task_id):
+            await table.upsert({"id": task_id, "data": {"key1": f"value{task_id}"}})
 
-    tasks = [upsert_task(i) for i in range(1000)]
-    await asyncio.gather(*tasks)
+        tasks = [upsert_task(i) for i in range(1000)]
+        await asyncio.gather(*tasks)
+        results = await table.search({"key1": "value5"})
 
-    # Verify that all tasks completed successfully
-    results = await table.search({"key1": "value5"})
-    assert len(results) == 1
-    assert results[0]["data"]["key1"] == "value5"
+        assert len(results) == 1
+        assert results[0]["data"]["key1"] == "value5"
+    finally:
+        await controller.close()
 
 
 @pytest.mark.asyncio

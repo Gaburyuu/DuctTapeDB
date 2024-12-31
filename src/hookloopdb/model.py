@@ -79,7 +79,6 @@ class HookLoopModel(BaseModel):
         if not self._table:
             raise ValueError("No table is set for this model.")
         data = self.model_dump(exclude={"id"})
-        print("data", data)
         self.id = await self._table.upsert({"id": self.id, "data": data})
         return self.id
 
