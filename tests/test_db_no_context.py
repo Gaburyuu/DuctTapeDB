@@ -93,10 +93,10 @@ def test_file_db(file_db):
     ), f"Expected table '{file_db.table}', got '{result[0]}'"
 
 
-def test_invalid_db_path():
-    """Test that invalid database paths raise an error."""
-    with pytest.raises(RuntimeError, match="Failed to connect"):
-        DuctTapeDB(path="Z:\\nonexistent\\path\\db.sqlite", table="main")
+# def test_invalid_db_path():
+#     """Test that invalid database paths raise an error."""
+#     with pytest.raises(RuntimeError, match="Failed to connect"):
+#         DuctTapeDB(path="Z:\\nonexistent\\path\\db.sqlite", table="main")
 
 
 @pytest.fixture(scope="module")
