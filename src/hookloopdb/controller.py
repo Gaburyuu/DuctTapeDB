@@ -38,7 +38,13 @@ class AsyncSQLiteController:
             if self._connection:
                 await self._connection.close()
                 self._connection = None
-                print("closed connection", self._connection)
+
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     async def execute(self, query: str, params=None):
         """Execute a single query."""

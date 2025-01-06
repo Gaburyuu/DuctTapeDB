@@ -14,6 +14,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -22,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff black pytest pydantic
+          pip install ruff black pytest pydantic pytest-asyncio pytest-benchmark
 
       - name: Run Ruff
         run: ruff check . --fix # Lint with Ruff and auto-fix issues
@@ -31,4 +39,10 @@ jobs:
         run: black --check .
 
       - name: Run Pytest
-        run: pytest -v
+        run: pytest -m "not benchmark"
+
+      - name: Benchmark Report
+        if: success()  # Only run if the tests pass
+        run: |
+          pytest --benchmark-only --benchmark-save=ci.json
+

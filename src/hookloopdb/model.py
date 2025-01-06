@@ -2,8 +2,6 @@ from typing import TypeVar, Type, Optional
 from pydantic import BaseModel
 from .table import HookLoopTable
 from typing import Any
-import json
-from aiosqlite import Connection as Aioconnection
 
 T = TypeVar("T", bound="HookLoopModel")
 

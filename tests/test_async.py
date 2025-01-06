@@ -6,7 +6,7 @@ from src import (
     HookLoopTable,
 )
 from src.hookloopdb.controller import AsyncSQLiteController
-from typing import Any, Optional
+from typing import Optional
 
 
 class HookLoopModelTest(HookLoopModel):
@@ -247,3 +247,56 @@ async def test_search_advanced_operators(setup_table):
         await setup_table.search_advanced(
             [{"key": "key2", "value": 20, "operator": "INVALID"}]
         )
+
+
+@pytest.mark.asyncio
+async def test_context_manager():
+    """Test the AsyncSQLiteController context manager."""
+    async with await AsyncSQLiteController.create_memory(
+        shared_cache=True
+    ) as controller:
+        # Verify connection is open
+        assert controller._connection is not None
+
+        # Execute a simple query
+        await controller.execute(
+            "CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT);"
+        )
+        await controller.execute("INSERT INTO test (name) VALUES (?);", ["Test Name"])
+
+        # Verify data insertion
+        cursor = await controller.execute("SELECT name FROM test;")
+        rows = [row[0] async for row in cursor]
+        assert rows == ["Test Name"]
+
+    # After exiting the context, the connection should be closed
+    assert controller._connection is None
+
+
+@pytest.mark.benchmark
+def test_bulk_insert_benchmark(benchmark, setup_table):
+    """Benchmark bulk insert operation asynchronously."""
+
+    async def bulk_insert():
+        for i in range(1000):
+            await setup_table.upsert({"id": i, "data": {"key": f"value{i}"}})
+
+    def run_bulk_insert():
+        asyncio.run(bulk_insert())
+
+    # Benchmark the synchronous wrapper
+    benchmark(run_bulk_insert)
+
+
+@pytest.mark.benchmark
+def test_bulk_save_model_benchmark(benchmark, setup_models):
+    """Benchmark bulk save operation for the model."""
+
+    async def bulk_save():
+        models = [HookLoopModelTest(id=None, key1=f"bulk{i}") for i in range(1000)]
+        await HookLoopModelTest.bulk_save(models)
+
+    def run_bulk_save():
+        asyncio.run(bulk_save())
+
+    benchmark(run_bulk_save)

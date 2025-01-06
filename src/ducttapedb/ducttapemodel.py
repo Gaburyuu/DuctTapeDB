@@ -1,7 +1,6 @@
 from typing import TypeVar, Type, Optional, ClassVar
 from pydantic import BaseModel, ValidationError
 from .ducttapedb import DuctTapeDB
-import json
 
 T = TypeVar("T", bound="DuctTapeModel")
 
