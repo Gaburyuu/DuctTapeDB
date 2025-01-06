@@ -162,3 +162,5 @@ cython_debug/
 #.idea/
 z.py
 *.db
+scratch/
+scratch/
