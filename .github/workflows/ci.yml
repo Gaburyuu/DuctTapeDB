@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff black pytest pydantic pytest-asyncio pytest-benchmark
+          pip install ruff black pytest pydantic aiosqlite pytest-asyncio pytest-benchmark
 
       - name: Run Ruff
         run: ruff check . --fix # Lint with Ruff and auto-fix issues
@@ -39,7 +39,7 @@ jobs:
         run: black --check .
 
       - name: Run Pytest
-        run: pytest -m "not benchmark"
+        run: pytest -v -m "not benchmark"
 
       - name: Benchmark Report
         if: success()  # Only run if the tests pass
