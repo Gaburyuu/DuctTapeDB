@@ -296,7 +296,7 @@ def test_aggregate_where_raw(memory_db_func):
     count = memory_db_func.aggregate(
         "COUNT", "level", where_raw="json_extract(data, '$.type') = 'Dragon'"
     )
-    result = memory_db_func.conn.execute("SELECT * from function_nc;")
+    memory_db_func.conn.execute("SELECT * from function_nc;")
     assert count == 3, f"Expected 3 monsters, got {count}"
 
     # Quick and dirty SQL injection test
@@ -304,7 +304,7 @@ def test_aggregate_where_raw(memory_db_func):
         RuntimeError, match="You can only execute one statement at a time"
     ):
         memory_db_func.aggregate(
-            "COUNT", "level", where_raw="1=1; DROP TABLE function_nc;"
+            "COUNT", "level", where_raw="1=1; DROP TABLE documents;"
         )
 
 

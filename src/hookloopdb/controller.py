@@ -1,35 +1,99 @@
+import asyncio
 import aiosqlite
 
 
 class AsyncSQLiteController:
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self.connection: aiosqlite.Connection = None
+    def __init__(self, db_path: str, semaphore: int = 100):
+        self.db_path: str = db_path
+        self._connection: aiosqlite.Connection = None
+        self._lock = asyncio.Lock()  # Lock to ensure task safety
+        self._semaphore = asyncio.Semaphore(semaphore)  # Limit concurrent queries
 
-    async def connect(self):
+    async def connect(self, uri: bool = False):
         """Establish a connection to the SQLite database."""
-        self.connection = await aiosqlite.connect(self.db_path)
-        await self.connection.execute("PRAGMA journal_mode = WAL;")
-        await self.connection.execute("PRAGMA synchronous = NORMAL;")
-        await self.connection.execute("PRAGMA cache_size = -64000;")
-        await self.connection.execute("PRAGMA temp_store = MEMORY;")
+        async with self._lock:
+            if self._connection:
+                return
+
+            self._connection = await aiosqlite.connect(self.db_path, uri=uri)
+
+            # Switch to Write-Ahead Logging (WAL) mode
+            await self._connection.execute("PRAGMA journal_mode = WAL;")
+
+            # Set synchronous mode to NORMAL
+            await self._connection.execute("PRAGMA synchronous = NORMAL;")
+
+            # Increase cache size to 64MB
+            await self._connection.execute("PRAGMA cache_size = -64000;")
+
+            # Store temporary tables and results in memory
+            await self._connection.execute("PRAGMA temp_store = MEMORY;")
+
+            # Wait up to 5000ms (5 seconds)
+            await self._connection.execute("PRAGMA busy_timeout = 5000;")
 
     async def close(self):
         """Close the database connection."""
-        if self.connection:
-            await self.connection.close()
-            self.connection = None
+        async with self._lock:
+            if self._connection:
+                await self._connection.close()
+                self._connection = None
+
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     async def execute(self, query: str, params=None):
         """Execute a single query."""
-        async with self.connection.execute(query, params or ()) as cursor:
-            return await cursor.fetchall()
+        async with self._semaphore:  # Limit concurrent queries
+            async with self._lock:
+                if not self._connection:
+                    raise RuntimeError("Database connection is not established.")
+
+                return await self._connection.execute(query, params or ())
 
     async def executemany(self, query: str, param_list):
         """Execute multiple queries in a batch."""
-        await self.connection.executemany(query, param_list)
-        await self.connection.commit()
+        async with self._semaphore:  # Limit concurrent queries
+            async with self._lock:
+                if not self._connection:
+                    raise RuntimeError("Database connection is not established.")
+
+                await self._connection.executemany(query, param_list)
 
     async def execute_script(self, script: str):
         """Execute multiple SQL commands as a script."""
-        await self.connection.executescript(script)
+        async with self._semaphore:  # Limit concurrent queries
+            async with self._lock:
+                if not self._connection:
+                    raise RuntimeError("Database connection is not established.")
+
+                await self._connection.executescript(script)
+
+    async def commit(self):
+        """Commit the current transaction."""
+        async with self._semaphore:  # Limit concurrent queries
+            async with self._lock:
+                if not self._connection:
+                    raise RuntimeError("Database connection is not established.")
+
+                await self._connection.commit()
+
+    @classmethod
+    async def create_memory(cls, shared_cache: bool = False) -> "AsyncSQLiteController":
+        """
+        Factory method to create an in-memory AsyncSQLiteController.
+
+        Args:
+            shared_cache (bool): If True, creates a shared-cache in-memory DB.
+
+        Returns:
+            AsyncSQLiteController: An instance of AsyncSQLiteController with an in-memory database.
+        """
+        db_path = "file::memory:?cache=shared" if shared_cache else ":memory:"
+        controller = cls(db_path)
+        await controller.connect(uri=shared_cache)
+        return controller
