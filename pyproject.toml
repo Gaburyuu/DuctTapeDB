@@ -23,7 +23,7 @@ dev = [
 requires-python = ">=3.11"
 readme = "README.md"
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
 
   # Indicate who your project is intended for
   "Intended Audience :: Developers",
