@@ -97,3 +97,19 @@ class AsyncSQLiteController:
         controller = cls(db_path)
         await controller.connect(uri=shared_cache)
         return controller
+
+    @classmethod
+    async def create_file(cls, filepath: str, uri: bool = False) -> "AsyncSQLiteController":
+        """
+        Factory method to create a file-based AsyncSQLiteController.
+
+        Args:
+            filepath (str): The path to the SQLite database file.
+            uri (bool): If True, treat `filepath` as a URI.
+
+        Returns:
+            AsyncSQLiteController: An instance of AsyncSQLiteController with a file-based database.
+        """
+        controller = cls(filepath)
+        await controller.connect(uri=uri)
+        return controller

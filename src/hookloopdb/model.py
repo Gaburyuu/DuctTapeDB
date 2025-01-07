@@ -133,3 +133,12 @@ class HookLoopModel(BaseModel):
         await conn.commit()
 
         return [model.id for model in models]
+
+    async def delete(self):
+        """Delete the model instance."""
+        if not self._table:
+            raise ValueError("No table is set for this model.")
+        if self.id is None:
+            raise ValueError("Cannot delete an object without an ID.")
+
+        await self._table.delete_document(self.id)

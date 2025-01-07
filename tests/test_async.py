@@ -272,6 +272,48 @@ async def test_context_manager():
     # After exiting the context, the connection should be closed
     assert controller._connection is None
 
+@pytest.mark.asyncio
+async def test_model_delete(setup_models):
+    """Test deleting a model."""
+    # Create and save a model
+    model = HookLoopModelTest(id=None, key1="delete_me", key2=42)
+    saved_id = await model.save()
+
+    # Verify it exists in the database
+    fetched_model = await HookLoopModelTest.from_id(saved_id)
+    assert fetched_model is not None
+
+    # Delete the model
+    await model.delete()
+
+    # Ensure it no longer exists
+    with pytest.raises(ValueError):
+        await HookLoopModelTest.from_id(saved_id)
+
+@pytest.mark.asyncio
+async def test_search_advanced_with_in_and_conditions(setup_table):
+    """Test advanced search with IN operator and multiple conditions."""
+    # Insert test data
+    await setup_table.upsert({"id": 1, "data": {"key1": "value1", "key2": 10}})
+    await setup_table.upsert({"id": 2, "data": {"key1": "value2", "key2": 20}})
+    await setup_table.upsert({"id": 3, "data": {"key1": "value3", "key2": 30}})
+    await setup_table.upsert({"id": 4, "data": {"key1": "value4", "key2": 40}})
+
+    # Test IN operator
+    results = await setup_table.search_advanced([
+        {"key": "key2", "operator": "IN", "value": [10, 30, 40]}
+    ])
+    assert len(results) == 3
+    assert {result["id"] for result in results} == {1, 3, 4}
+
+    # Test multiple conditions (AND)
+    results = await setup_table.search_advanced([
+        {"key": "key2", "operator": ">", "value": 10},
+        {"key": "key2", "operator": "<", "value": 40},
+    ])
+    assert len(results) == 2
+    assert {result["id"] for result in results} == {2, 3}
+
 
 @pytest.mark.benchmark
 def test_bulk_insert_benchmark(benchmark, setup_table):
