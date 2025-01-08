@@ -25,7 +25,7 @@ table: HookLoopTable = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global table
-    table = await HookLoopTable.create_file("items", "items.db")
+    table = await HookLoopTable.create_file("items", "_ducttapedb_example_items.db")
     await table.initialize()
     Item.set_table(table)
     yield
