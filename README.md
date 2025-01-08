@@ -1,72 +1,141 @@
 # 🛠️ DuctTapeDB
 
-DuctTapeDB is a lightweight, SQLite-powered, NoSQL-like database. It’s like a duct-tape fix for when you need simple JSON storage without the complexity of a full-blown database. Built with Python, it integrates neatly with Pydantic models for schema validation and object management.
+DuctTapeDB is a lightweight, SQLite-powered solution designed for **quickly persisting and searching Pydantic models**. Whether you're working on **non-technical projects** or building **fast prototypes with FastAPI**, DuctTapeDB provides a simple and intuitive way to store and manage your data.
 
-Originally used for a hobby project of mine. Perfect for hobby projects or just experimenting with a "NoSQL but make it SQLite" approach. 🚀
+Originally created for a hobby project, DuctTapeDB has evolved into a powerful tool for **rapid development**, with a focus on ease of use and integration. 🚀
+
+---
+
+## **Why Use DuctTapeDB?**
+
+- **Pydantic-Centric**: Effortlessly store and search Pydantic models without additional setup.
+- **FastAPI-Ready**: Perfect for creating CRUD APIs in minutes.
+- **Lightweight**: Powered by SQLite—works out-of-the-box, no server required.
+- **Async and Sync Support**:
+  - **HookLoopDB** (Async): Feature-rich and optimized for modern async workflows.
+  - **DuctTapeDB** (Sync): A straightforward synchronous option, with plans to align features across both modes.
 
 ---
 
 ## **Features**
 
-- **JSON Storage**: Store and query JSON documents like you would in a NoSQL database.
-- **Pydantic Integration**: Use Pydantic models to validate and manage your data, and auto-save the models to the database.
-- **Lightweight**: Powered by SQLite—no server needed, works out-of-the-box!
-
----
-
-### **TODO**
-
-- **Relationships**: Simulate document relationships across tables.
+- **Simple Persistence**: Automatically save and retrieve Pydantic models with minimal code.
+- **Advanced Querying**: Query data using JSON fields and SQL expressions.
+- **Async and Sync Options**: Use what fits your project best.
+- **FastAPI Integration**: Quickly build APIs with CRUD functionality.
+- **SQLite-Powered**: Works anywhere—no need for additional infrastructure.
 
 ---
 
 ## **Installation**
 
-You can install DuctTapeDB using pip:
+Install DuctTapeDB using pip:
 
 ```bash
 pip install ducttapedb
 ```
 
-## Quickstart
-
-https://pypi.org/project/ducttapedb/
+For examples using **FastAPI** and **FastUI**, ensure you also install the required dependencies:
 
 ```bash
-pip install ducttapedb
+pip install fastapi fastui pydantic
 ```
 
-### Here's how you can get started:
+---
 
-1. Create a Database
+## **Quickstart**
 
-```python
-from ducttapedb.ducttapedb import DuctTapeDB
-
-# Create an in-memory database
-db = DuctTapeDB.create_memory()
-```
-
-2. Define a Pydantic Model
+### 1. Define Your Pydantic Model
 
 ```python
-from ducttapedb.ducttapemodel import DuctTapeModel
+from ducttapedb.hookloopdb.model import HookLoopModel
 
-class MyDocument(DuctTapeModel):
+class Item(HookLoopModel):
     name: str
-    value: int
+    description: str
+    price: float
+    in_stock: bool
 ```
 
-3. Save and Retrieve Data
+---
+
+### 2. Create a Database
 
 ```python
-# Create an instance
-doc = MyDocument(name="Slime", value=42)
+from ducttapedb.hookloopdb.table import HookLoopTable
 
-# Save to the database
-doc.save(db)
-
-# Retrieve by ID
-retrieved_doc = MyDocument.from_id(db, doc.id)
-print(retrieved_doc)
+# Create an async SQLite database
+async def setup_database():
+    table = await HookLoopTable.create_file("items", "items.db")
+    await table.initialize()
+    Item.set_table(table)
 ```
+
+---
+
+### 3. Perform CRUD Operations
+
+#### Create
+```python
+item = Item(name="Widget", description="A useful widget", price=19.99, in_stock=True)
+await item.save()
+```
+
+#### Read
+```python
+retrieved_item = await Item.from_id(item.id)
+print(retrieved_item)
+```
+
+#### Query
+```python
+items_in_stock = await Item.models_from_db(order_by="json_extract(data, '$.price') ASC")
+print(items_in_stock)
+```
+
+#### Delete
+```python
+await item.delete()
+```
+
+---
+
+## **Using with FastAPI**
+
+You can quickly spin up a CRUD API using DuctTapeDB with FastAPI. Here's how:
+
+1. **Run the Example API**:
+   - Install dependencies:
+     ```bash
+     pip install fastapi fastui pydantic
+     ```
+   - Start the development server:
+     ```bash
+     uvicorn examples.api.main:app --reload
+     ```
+
+2. **Navigate to**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the interactive API documentation, or to [http://127.0.0.1:8000](http://127.0.0.1:8000) for a very simple FastUI table and a form to insert items.
+
+---
+
+## **Roadmap**
+
+- Align features across **HookLoopDB** (Async) and **DuctTapeDB** (Sync).
+- Add more advanced querying capabilities.
+- Simplify relationships and data normalization.
+
+---
+
+## **Contributing**
+
+Contributions are welcome! If you encounter bugs or have feature requests, feel free to open an issue on GitHub.
+
+---
+
+## **License**
+
+DuctTapeDB is licensed under the MIT License. See the `LICENSE` file for more details.
+
+---
+
+Let me know if you'd like any additional tweaks! 🚀
