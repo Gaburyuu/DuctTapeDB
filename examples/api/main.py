@@ -49,10 +49,10 @@ async def items_table() -> list[AnyComponent]:
                     data=items,
                     data_model = Item,
                     columns=[
-                        DisplayLookup(field='name', on_click=GoToEvent(url = '/api/item/{id}/')),
+                        DisplayLookup(field='name', mode = DisplayMode.auto, on_click=GoToEvent(url = '/item/{id}/')),
                         DisplayLookup(field='description'),
                         DisplayLookup(field='price', mode=DisplayMode.currency),
-                        DisplayLookup(field='in_stock'),
+                        DisplayLookup(field='in_stock', table_width_percent=10),
                     ],
                 ),
                 c.Link(components=[
