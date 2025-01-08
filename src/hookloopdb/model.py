@@ -72,6 +72,21 @@ class HookLoopModel(BaseModel):
         document = results[0]
         data = {"id": document["id"], **document["data"]}
         return cls.model_validate(data)
+    
+    @classmethod
+    async def from_db_row(cls: Type[T], data: dict[str, Any]) -> T:
+        """Create an object from a database row.
+
+        Args:
+            data (dict[str, Any]): A dictionary representing the database row.
+                Expected format:
+                - `id` (int): The primary key of the row.
+                - `data` (dict): The JSON data associated with the row.
+
+        Returns:
+            T: An instance of the class created from the database row.
+        """
+        return cls.model_validate(data.get("data"))
 
     async def save(self) -> int:
         if not self._table:
