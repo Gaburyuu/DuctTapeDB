@@ -99,7 +99,9 @@ class AsyncSQLiteController:
         return controller
 
     @classmethod
-    async def create_file(cls, filepath: str, uri: bool = False) -> "AsyncSQLiteController":
+    async def create_file(
+        cls, filepath: str, uri: bool = False
+    ) -> "AsyncSQLiteController":
         """
         Factory method to create a file-based AsyncSQLiteController.
 

@@ -72,7 +72,7 @@ class HookLoopModel(BaseModel):
         document = results[0]
         data = {"id": document["id"], **document["data"]}
         return cls.model_validate(data)
-    
+
     @classmethod
     async def from_db_row(cls: Type[T], data: dict[str, Any]) -> T:
         """Create an object from a database row.
@@ -87,7 +87,7 @@ class HookLoopModel(BaseModel):
             T: An instance of the class created from the database row.
         """
         return cls.model_validate(data.get("data"))
-    
+
     @classmethod
     async def models_from_db(
         cls: Type[T],
@@ -108,9 +108,10 @@ class HookLoopModel(BaseModel):
         if not cls._table:
             raise ValueError("No table is set for this model.")
 
-        rows = await cls._table.search_all(limit=limit, offset=offset, order_by=order_by)
+        rows = await cls._table.search_all(
+            limit=limit, offset=offset, order_by=order_by
+        )
         return [await cls.from_db_row(row) for row in rows]
-
 
     async def save(self) -> int:
         if not self._table:

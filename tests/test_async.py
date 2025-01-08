@@ -272,6 +272,7 @@ async def test_context_manager():
     # After exiting the context, the connection should be closed
     assert controller._connection is None
 
+
 @pytest.mark.asyncio
 async def test_model_delete(setup_models):
     """Test deleting a model."""
@@ -290,6 +291,7 @@ async def test_model_delete(setup_models):
     with pytest.raises(ValueError):
         await HookLoopModelTest.from_id(saved_id)
 
+
 @pytest.mark.asyncio
 async def test_search_advanced_with_in_and_conditions(setup_table):
     """Test advanced search with IN operator and multiple conditions."""
@@ -300,19 +302,22 @@ async def test_search_advanced_with_in_and_conditions(setup_table):
     await setup_table.upsert({"id": 4, "data": {"key1": "value4", "key2": 40}})
 
     # Test IN operator
-    results = await setup_table.search_advanced([
-        {"key": "key2", "operator": "IN", "value": [10, 30, 40]}
-    ])
+    results = await setup_table.search_advanced(
+        [{"key": "key2", "operator": "IN", "value": [10, 30, 40]}]
+    )
     assert len(results) == 3
     assert {result["id"] for result in results} == {1, 3, 4}
 
     # Test multiple conditions (AND)
-    results = await setup_table.search_advanced([
-        {"key": "key2", "operator": ">", "value": 10},
-        {"key": "key2", "operator": "<", "value": 40},
-    ])
+    results = await setup_table.search_advanced(
+        [
+            {"key": "key2", "operator": ">", "value": 10},
+            {"key": "key2", "operator": "<", "value": 40},
+        ]
+    )
     assert len(results) == 2
     assert {result["id"] for result in results} == {2, 3}
+
 
 @pytest.mark.asyncio
 async def test_model_json_ordering(setup_models):
@@ -330,7 +335,9 @@ async def test_model_json_ordering(setup_models):
     await model4.save()
 
     # Retrieve models ordered by `key2` (ascending)
-    models_asc = await HookLoopModelTest.models_from_db(order_by='json_extract(data, "$.key2") ASC')
+    models_asc = await HookLoopModelTest.models_from_db(
+        order_by='json_extract(data, "$.key2") ASC'
+    )
 
     # Verify the models are sorted correctly
     assert len(models_asc) == 4
@@ -340,13 +347,14 @@ async def test_model_json_ordering(setup_models):
     assert models_asc[3].key1 == "Item C"  # Highest key2
 
     # Retrieve models ordered by `key2` (descending) with a limit
-    models_desc = await HookLoopModelTest.models_from_db(order_by='json_extract(data, "$.key2") DESC', limit=2)
+    models_desc = await HookLoopModelTest.models_from_db(
+        order_by='json_extract(data, "$.key2") DESC', limit=2
+    )
 
     # Verify the models are sorted correctly in descending order
     assert len(models_desc) == 2
     assert models_desc[0].key1 == "Item C"  # Highest key2
     assert models_desc[1].key1 == "Item A"  # Second highest key2
-
 
 
 @pytest.mark.benchmark

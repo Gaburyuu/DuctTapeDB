@@ -1,12 +1,13 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Form
+from fastapi.responses import HTMLResponse
 from fastui import FastUI, AnyComponent, prebuilt_html, components as c
 from fastui.components.display import DisplayMode, DisplayLookup
-from fastui.events import GoToEvent, BackEvent
+from fastui.events import GoToEvent
 from src.hookloopdb.table import HookLoopTable
 from src.hookloopdb.model import HookLoopModel
 from contextlib import asynccontextmanager
 from typing import Optional
+
 
 #
 # Example model
@@ -44,20 +45,25 @@ async def items_table() -> list[AnyComponent]:
     return [
         c.Page(
             components=[
-                c.Heading(text='Items', level=2),
+                c.Heading(text="Items", level=2),
                 c.Table(
                     data=items,
-                    data_model = Item,
+                    data_model=Item,
                     columns=[
-                        DisplayLookup(field='name', mode = DisplayMode.auto, on_click=GoToEvent(url = '/item/{id}/')),
-                        DisplayLookup(field='description'),
-                        DisplayLookup(field='price', mode=DisplayMode.currency),
-                        DisplayLookup(field='in_stock', table_width_percent=10),
+                        DisplayLookup(
+                            field="name",
+                            mode=DisplayMode.auto,
+                            on_click=GoToEvent(url="/item/{id}/"),
+                        ),
+                        DisplayLookup(field="description"),
+                        DisplayLookup(field="price", mode=DisplayMode.currency),
+                        DisplayLookup(field="in_stock", table_width_percent=10),
                     ],
                 ),
-                c.Link(components=[
-                    c.Text(text = "Add Item")
-                ], on_click=GoToEvent(url = '/item/new')),
+                c.Link(
+                    components=[c.Text(text="Add Item")],
+                    on_click=GoToEvent(url="/item/new"),
+                ),
             ]
         ),
     ]
@@ -72,9 +78,9 @@ async def item_detail(item_id: int):
             c.Page(
                 components=[
                     c.Heading(text=item.name, level=2),
-                    c.Link(text='Back to Items', url='/'),
+                    c.Link(text="Back to Items", url="/"),
                     c.Details(data=item.dict()),
-                    c.Link(text='Edit Item', url=f'/api/item/{item_id}/edit'),
+                    c.Link(text="Edit Item", url=f"/api/item/{item_id}/edit"),
                 ]
             ),
         ]
@@ -82,25 +88,25 @@ async def item_detail(item_id: int):
         raise HTTPException(status_code=404, detail="Item not found")
 
 
-@app.get("/api/item/new", response_model=FastUI, response_model_exclude_none = True)
+@app.get("/api/item/new", response_model=FastUI, response_model_exclude_none=True)
 async def new_item_form():
     """Form to create a new item."""
     return [
         c.Page(
             components=[
-                c.Heading(text='New Item', level=2),
+                c.Heading(text="New Item", level=2),
                 c.Form(
                     submit_url="/items/",
-                    method = "POST",
-                    form_fields = [
+                    method="POST",
+                    form_fields=[
                         c.FormFieldInput(
-                            name = 'name',
+                            name="name",
                             required=True,
                             title="Name",
                         ),
                         c.forms.FormFieldTextarea(
                             rows=3,
-                            name = 'description',
+                            name="description",
                             required=True,
                             title="description",
                         ),
@@ -108,22 +114,19 @@ async def new_item_form():
                             name="price",
                             title="Price",
                             required=True,
-                            html_type='number'
+                            html_type="number",
                         ),
                         c.forms.FormFieldBoolean(
                             name="in_stock",
                             title="In Stock",
-                            initial = False,
+                            initial=False,
                         ),
-
-                    ]
+                    ],
                 ),
             ]
         ),
     ]
 
-
-from fastapi import Form
 
 @app.post("/items/", response_model_exclude_none=True)
 async def create_item(
@@ -139,13 +142,9 @@ async def create_item(
         price=price,
         in_stock=in_stock,
     )
-    saved_id = await item.save()
+    await item.save()
 
-    return [
-        c.FireEvent(
-            event=GoToEvent(url="/")
-        )
-    ]
+    return [c.FireEvent(event=GoToEvent(url="/"))]
 
 
 @app.get("/items/{item_id}", response_model=dict)
@@ -185,4 +184,4 @@ async def delete_item(item_id: int):
 @app.get("/", response_class=HTMLResponse)
 def serve_frontend():
     """Serve the FastUI frontend."""
-    return HTMLResponse(content=prebuilt_html(title='Items Manager'))
+    return HTMLResponse(content=prebuilt_html(title="Items Manager"))

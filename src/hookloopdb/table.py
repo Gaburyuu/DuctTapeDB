@@ -129,7 +129,7 @@ class HookLoopTable:
             for row in await cursor.fetchall()
         ]
         return results
-    
+
     async def search_all(
         self,
         limit: Optional[int] = None,
@@ -158,9 +158,10 @@ class HookLoopTable:
 
         query = f"SELECT id, data FROM {self.table_name} {clause}"
         cursor = await self.controller.execute(query)
-        return [{"id": row[0], "data": json.loads(row[1])} for row in await cursor.fetchall()]
-
-
+        return [
+            {"id": row[0], "data": json.loads(row[1])}
+            for row in await cursor.fetchall()
+        ]
 
     async def search_advanced(self, filters: list[dict[str, Any]]) -> list[dict]:
         """Advanced search with multiple conditions.
@@ -201,8 +202,10 @@ class HookLoopTable:
             WHERE {' AND '.join(conditions)}
         """
         cursor = await self.controller.execute(query, params)
-        return [{"id": row[0], "data": json.loads(row[1])} for row in await cursor.fetchall()]
-
+        return [
+            {"id": row[0], "data": json.loads(row[1])}
+            for row in await cursor.fetchall()
+        ]
 
     async def delete_document(self, id: int):
         """Delete a document by its unique ID.
@@ -217,9 +220,10 @@ class HookLoopTable:
         await self.controller.execute(query, (id,))
         await self.controller.commit()
 
-
     @classmethod
-    async def create_memory(cls, table_name: str, shared_cache: bool = False) -> "HookLoopTable":
+    async def create_memory(
+        cls, table_name: str, shared_cache: bool = False
+    ) -> "HookLoopTable":
         """
         Factory method to create a HookLoopTable with an in-memory SQLite database.
 
@@ -234,13 +238,17 @@ class HookLoopTable:
             In-memory databases are volatile and will lose all data once the application shuts down.
             Use this only for testing or temporary storage.
         """
-        controller = await AsyncSQLiteController.create_memory(shared_cache=shared_cache)
+        controller = await AsyncSQLiteController.create_memory(
+            shared_cache=shared_cache
+        )
         table = cls(controller, table_name)
         await table.initialize()
         return table
 
     @classmethod
-    async def create_file(cls, table_name: str, filepath: str, uri: bool = False) -> "HookLoopTable":
+    async def create_file(
+        cls, table_name: str, filepath: str, uri: bool = False
+    ) -> "HookLoopTable":
         """
         Factory method to create a HookLoopTable with a file-based SQLite database.
 
