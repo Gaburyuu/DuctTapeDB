@@ -87,6 +87,30 @@ class HookLoopModel(BaseModel):
             T: An instance of the class created from the database row.
         """
         return cls.model_validate(data.get("data"))
+    
+    @classmethod
+    async def models_from_db(
+        cls: Type[T],
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        order_by: str = "id ASC",
+    ) -> list[T]:
+        """Retrieve rows from the database table and convert them into model instances.
+
+        Args:
+            limit (Optional[int]): The maximum number of rows to return. Defaults to None (no limit).
+            offset (Optional[int]): The number of rows to skip before starting to return rows. Defaults to None (no offset).
+            order_by (str): The column or SQL expression to order by (e.g., 'id ASC', 'json_extract(data, "$.key") DESC').
+
+        Returns:
+            list[T]: A list of model instances corresponding to the retrieved rows.
+        """
+        if not cls._table:
+            raise ValueError("No table is set for this model.")
+
+        rows = await cls._table.search_all(limit=limit, offset=offset, order_by=order_by)
+        return [await cls.from_db_row(row) for row in rows]
+
 
     async def save(self) -> int:
         if not self._table:

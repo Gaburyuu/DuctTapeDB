@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Optional
 from .controller import AsyncSQLiteController
 from aiosqlite import Connection as Aioconnection
 
@@ -129,6 +129,38 @@ class HookLoopTable:
             for row in await cursor.fetchall()
         ]
         return results
+    
+    async def search_all(
+        self,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        order_by: str = "id ASC",
+    ) -> list[dict]:
+        """Retrieve rows from the table with optional slicing and ordering.
+
+        Args:
+            limit (Optional[int]): The maximum number of rows to return. Defaults to None (no limit).
+            offset (Optional[int]): The number of rows to skip before starting to return rows. Defaults to None (no offset).
+            order_by (str): The column or SQL expression to order by (e.g., 'id ASC', 'json_extract(data, "$.key") DESC').
+
+        Returns:
+            list[dict]: A list of dictionaries representing the rows.
+                Each dictionary contains:
+                - `id` (int): The primary key of the row.
+                - `data` (dict): The JSON data associated with the row.
+        """
+        clauses = [f"ORDER BY {order_by}"]
+        if offset is not None:
+            clauses.append(f"OFFSET {offset}")
+        if limit is not None:
+            clauses.append(f"LIMIT {limit}")
+        clause = " ".join(clauses)
+
+        query = f"SELECT id, data FROM {self.table_name} {clause}"
+        cursor = await self.controller.execute(query)
+        return [{"id": row[0], "data": json.loads(row[1])} for row in await cursor.fetchall()]
+
+
 
     async def search_advanced(self, filters: list[dict[str, Any]]) -> list[dict]:
         """Advanced search with multiple conditions.

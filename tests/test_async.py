@@ -314,6 +314,40 @@ async def test_search_advanced_with_in_and_conditions(setup_table):
     assert len(results) == 2
     assert {result["id"] for result in results} == {2, 3}
 
+@pytest.mark.asyncio
+async def test_model_json_ordering(setup_models):
+    """Test models_from_db with ordering by a JSON field."""
+    # Create and save multiple models
+    model1 = HookLoopModelTest(id=None, key1="Item A", key2=15)
+    model2 = HookLoopModelTest(id=None, key1="Item B", key2=9)
+    model3 = HookLoopModelTest(id=None, key1="Item C", key2=19)
+    model4 = HookLoopModelTest(id=None, key1="Item D", key2=12)
+
+    # Save models to the database
+    await model1.save()
+    await model2.save()
+    await model3.save()
+    await model4.save()
+
+    # Retrieve models ordered by `key2` (ascending)
+    models_asc = await HookLoopModelTest.models_from_db(order_by='json_extract(data, "$.key2") ASC')
+
+    # Verify the models are sorted correctly
+    assert len(models_asc) == 4
+    assert models_asc[0].key1 == "Item B"  # Lowest key2
+    assert models_asc[1].key1 == "Item D"
+    assert models_asc[2].key1 == "Item A"
+    assert models_asc[3].key1 == "Item C"  # Highest key2
+
+    # Retrieve models ordered by `key2` (descending) with a limit
+    models_desc = await HookLoopModelTest.models_from_db(order_by='json_extract(data, "$.key2") DESC', limit=2)
+
+    # Verify the models are sorted correctly in descending order
+    assert len(models_desc) == 2
+    assert models_desc[0].key1 == "Item C"  # Highest key2
+    assert models_desc[1].key1 == "Item A"  # Second highest key2
+
+
 
 @pytest.mark.benchmark
 def test_bulk_insert_benchmark(benchmark, setup_table):
