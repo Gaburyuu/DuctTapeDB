@@ -2,8 +2,6 @@ from .ducttapedb import (
     DuctTapeDB,
     DuctTapeModel,
     validators,
-)
-from .hookloopdb import (
     HookLoopModel,
     HookLoopTable,
 )

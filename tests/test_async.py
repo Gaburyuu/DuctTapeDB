@@ -5,7 +5,7 @@ from src import (
     HookLoopModel,
     HookLoopTable,
 )
-from src.hookloopdb.controller import AsyncSQLiteController
+from src.ducttapedb.hookloopdb.controller import AsyncSQLiteController
 from typing import Optional
 
 

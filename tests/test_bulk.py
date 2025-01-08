@@ -1,5 +1,5 @@
 import pytest
-from src.ducttapedb import DuctTapeDB, DuctTapeModel
+from src import DuctTapeDB, DuctTapeModel
 from random import randint
 
 
