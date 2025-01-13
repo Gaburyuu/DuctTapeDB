@@ -111,11 +111,25 @@ You can quickly spin up a CRUD API using DuctTapeDB with FastAPI. Here's how:
      ```
    - Start the development server:
      ```bash
-     uvicorn examples.api.main:app --reload
+     fastapi dev examples\api\main.py
      ```
 
 2. **Navigate to**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the interactive API documentation, or to [http://127.0.0.1:8000](http://127.0.0.1:8000) for a very simple FastUI table and a form to insert items.
 
+---
+
+## **More Examples**
+
+Other examples included in this repo:
+
+1. **Inserts with a timer going**:
+   - Install dependencies:
+     ```bash
+     python examples\async_inserts\example.py 
+     ```
+    - You should see stats printed as it inserts and retrieves rows with the async HookLoopModel
+    
+2. **More examples planned**
 ---
 
 ## **Roadmap**
@@ -123,6 +137,7 @@ You can quickly spin up a CRUD API using DuctTapeDB with FastAPI. Here's how:
 - Align features across **HookLoopDB** (Async) and **DuctTapeDB** (Sync).
 - Add more advanced querying capabilities.
 - Simplify relationships and data normalization.
+- Add more convenience features.
 
 ---
 

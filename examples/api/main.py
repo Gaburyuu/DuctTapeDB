@@ -3,8 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastui import FastUI, AnyComponent, prebuilt_html, components as c
 from fastui.components.display import DisplayMode, DisplayLookup
 from fastui.events import GoToEvent
-from src.hookloopdb.table import HookLoopTable
-from src.hookloopdb.model import HookLoopModel
+from src import HookLoopTable, HookLoopModel
 from contextlib import asynccontextmanager
 from typing import Optional
 
