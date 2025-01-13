@@ -3,11 +3,13 @@ import time
 from ducttapedb import HookLoopTable, HookLoopModel
 from ducttapedb.hookloopdb.controller import AsyncSQLiteController
 
+
 # Define two models
 class Item(HookLoopModel):
     name: str
     description: str
     price: float
+
 
 class Order(HookLoopModel):
     item_id: int
@@ -63,7 +65,9 @@ async def main():
     retrieve_single_end = time.perf_counter()
 
     print(f"Retrieved item: {retrieved_item}")
-    print(f"Retrieve single item time: {retrieve_single_end - retrieve_single_start:.2f} seconds")
+    print(
+        f"Retrieve single item time: {retrieve_single_end - retrieve_single_start:.2f} seconds"
+    )
 
     # Step 4: Retrieve all orders and count
     retrieve_orders_start = time.perf_counter()
@@ -71,7 +75,9 @@ async def main():
     retrieve_orders_end = time.perf_counter()
 
     print(f"Number of orders: {len(orders)}")
-    print(f"Retrieve all orders time: {retrieve_orders_end - retrieve_orders_start:.2f} seconds")
+    print(
+        f"Retrieve all orders time: {retrieve_orders_end - retrieve_orders_start:.2f} seconds"
+    )
 
     # Close the shared database connection
     close_start = time.perf_counter()
