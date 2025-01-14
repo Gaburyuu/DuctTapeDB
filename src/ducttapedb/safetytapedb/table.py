@@ -46,6 +46,8 @@ class SafetyTapeTable(HookLoopTable):
 
         await self.controller.commit()
 
+        self.columns = await self.get_non_data_columns()
+
     async def upsert(self, document: dict[Any, Any]) -> int:
         """
         Insert or update a document with optimistic locking.
@@ -90,23 +92,3 @@ class SafetyTapeTable(HookLoopTable):
                 )
             return id_value or cursor.lastrowid
 
-    async def find(self, doc_id: int) -> dict | None:
-        """
-        Retrieve a document by ID, including its version.
-
-        Args:
-            doc_id (int): The ID of the document to retrieve.
-
-        Returns:
-            dict | None: The document with its `id`, `version`, and `data` fields.
-        """
-        query = f"SELECT id, version, data FROM {self.table_name} WHERE id = ?"
-        cursor = await self.controller.execute(query, (doc_id,))
-        result = await cursor.fetchone()
-        if result:
-            return {
-                "id": result[0],
-                "version": result[1],
-                "data": json.loads(result[2]),
-            }
-        return None

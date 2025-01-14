@@ -73,7 +73,7 @@ class HookLoopTable:
 
     async def find(self, doc_id: int) -> dict | None:
         """Find a document by ID."""
-        query = f"SELECT id, data FROM {self.table_name} WHERE id = ?"
+        query = f"SELECT * FROM {self.table_name} WHERE id = ?"
         cursor = await self.controller.execute(query, (doc_id,))
         result = await cursor.fetchone()
         if result:
@@ -93,7 +93,7 @@ class HookLoopTable:
             list[dict]: A list of matching documents as dictionaries.
         """
         query = f"""
-            SELECT id, data
+            SELECT *
             FROM {self.table}
             WHERE json_extract(data, '$.' || ?) = ?
         """
@@ -140,7 +140,7 @@ class HookLoopTable:
         where_statement = " AND ".join(where_clauses)
 
         query = f"""
-            SELECT id, data
+            SELECT *
             FROM {self.table_name}
             WHERE {where_statement}
         """
@@ -184,7 +184,7 @@ class HookLoopTable:
             clauses.append(f"LIMIT {limit}")
         clause = " ".join(clauses)
 
-        query = f"SELECT id, data FROM {self.table_name} {clause}"
+        query = f"SELECT * FROM {self.table_name} {clause}"
         cursor = await self.controller.execute(query)
 
         results = []
@@ -229,7 +229,7 @@ class HookLoopTable:
                 params.append(value)
 
         query = f"""
-            SELECT id, data
+            SELECT *
             FROM {self.table_name}
             WHERE {' AND '.join(conditions)}
         """
