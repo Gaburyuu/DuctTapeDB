@@ -125,7 +125,8 @@ class SafetyTapeModel(BaseModel):
     @classmethod
     async def bulk_save(cls, models: list["SafetyTapeModel"]) -> list[int]:
         """
-        Save multiple models at once.
+        Save multiple models at once, ensuring model instances are updated
+        with the correct `id` and `version` from the database.
 
         Note:
             This method does NOT enforce optimistic locking. It performs inserts
@@ -145,37 +146,46 @@ class SafetyTapeModel(BaseModel):
         if not cls._table:
             raise ValueError("No table is set for this model.")
 
-        query = f"""
-            INSERT INTO {cls._table.table_name} (id, version, data)
-            VALUES (?, 0, json(?))
-            ON CONFLICT (id) DO UPDATE SET
-            version = version + 1,
-            data = json(?)
-        """
-        params = [
-            (
-                model.id,
-                model.model_dump_json(exclude={"id", "version"}),
-                model.model_dump_json(exclude={"id", "version"}),
-            )
-            for model in models
-        ]
+        # Separate new and existing models
+        new_models = [model for model in models if model.id is None]
+        existing_models = [model for model in models if model.id is not None]
+
+        results = []
 
         conn = cls._table.connection
         async with conn.execute("BEGIN TRANSACTION"):
-            await conn.executemany(query, params)
+            # Bulk insert for new models
+            if new_models:
+                insert_query = f"""
+                    INSERT INTO {cls._table.table_name} (version, data)
+                    VALUES (0, json(?))
+                    RETURNING id, version
+                """
+                insert_params = [model.model_dump_json(exclude={"id", "version"}) for model in new_models]
+                async with conn.executemany(insert_query, [(data,) for data in insert_params]) as cursor:
+                    for model, row in zip(new_models, await cursor.fetchall()):
+                        model.id, model.version = row
+                        results.append(model.id)
+
+            # Bulk update for existing models
+            if existing_models:
+                update_query = f"""
+                    UPDATE {cls._table.table_name}
+                    SET data = json(?), version = version + 1
+                    WHERE id = ?
+                    RETURNING id, version
+                """
+                update_params = [
+                    (model.model_dump_json(exclude={"id", "version"}), model.id)
+                    for model in existing_models
+                ]
+                async with conn.executemany(update_query, update_params) as cursor:
+                    for model, row in zip(existing_models, await cursor.fetchall()):
+                        model.id, model.version = row
+                        results.append(model.id)
+
             await conn.commit()
 
-        # Assign IDs for new models
-        new_models = [model for model in models if model.id is None]
-        if new_models:
-            result = await conn.execute(
-                f"SELECT id FROM {cls._table.table_name} ORDER BY id DESC LIMIT ?",
-                (len(new_models),),
-            )
-            new_ids = [row[0] for row in await result.fetchall()]
-            for model, new_id in zip(new_models, reversed(new_ids)):
-                model.id = new_id
+        return results
 
-        return [model.id for model in models]
 
