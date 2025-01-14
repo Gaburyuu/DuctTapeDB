@@ -71,29 +71,26 @@ class SafetyTapeTable(HookLoopTable):
         version = document.get("version")
 
         if id_value is None:
-            # Insert a new document with version 0 and return id, version
             query = f"""
                 INSERT INTO {self.table_name} (version, data)
                 VALUES (0, json(?))
                 RETURNING id, version
             """
-            params = (json_data,)
+            params = [json_data,]
         else:
             if version is None:
                 raise ValueError("Version must be provided for updates in SafetyTape.")
-
-            # Update the document with optimistic locking and return id, version
             query = f"""
                 UPDATE {self.table_name}
                 SET data = json(?), version = version + 1
                 WHERE id = ? AND version = ?
                 RETURNING id, version
             """
-            params = (json_data, id_value, version)
+            params = [json_data, id_value, version]
 
         async with self.controller._connection.execute(query, params) as cursor:
             result = await cursor.fetchone()
-            if result is None:  # No rows affected, indicating a version mismatch
+            if result is None:
                 raise RuntimeError(
                     f"Update failed for id={id_value}. Version mismatch detected."
                 )

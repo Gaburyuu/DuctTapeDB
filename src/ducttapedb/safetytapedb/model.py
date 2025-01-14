@@ -178,3 +178,4 @@ class SafetyTapeModel(BaseModel):
                 model.id = new_id
 
         return [model.id for model in models]
+

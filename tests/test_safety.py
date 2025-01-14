@@ -18,17 +18,18 @@ async def setup_controller():
     await controller.close()
 
 
-class Plushy(SafetyTapeModel):
+class Monster(SafetyTapeModel):
     name: str
-    softness: int
+    level: int
+    attack: Optional[int] = 10
 
 @pytest_asyncio.fixture
 async def setup_table(setup_controller):
-    """Fixture to set up a SafetyTapeTable and the Plushy model."""
-    table_name = "plushy_table"
+    """Fixture to set up a SafetyTapeTable and the Monster model."""
+    table_name = "monster_table"
     table = SafetyTapeTable(setup_controller, table_name)
     await table.initialize()
-    Plushy.set_table(table)
+    Monster.set_table(table)
     yield table
 
 
@@ -58,7 +59,7 @@ async def test_safetytapetable_insert(setup_controller):
 
     # Insert a new document
     document = {"data": {"key": "value"}}
-    doc_id = await safety_tape_table.upsert(document)
+    doc_id, version = await safety_tape_table.upsert(document)
 
     # Verify the inserted document
     result = await safety_tape_table.find(doc_id)
@@ -75,11 +76,11 @@ async def test_safetytapetable_update_correct_version(setup_controller):
 
     # Insert a new document
     document = {"data": {"key": "value"}}
-    doc_id = await safety_tape_table.upsert(document)
+    doc_id, version = await safety_tape_table.upsert(document)
 
     # Update the document with the correct version
     updated_document = {"id": doc_id, "data": {"key": "new_value"}, "version": 0}
-    updated_id = await safety_tape_table.upsert(updated_document)
+    updated_id, version = await safety_tape_table.upsert(updated_document)
 
     # Verify the updated document
     result = await safety_tape_table.find(updated_id)
@@ -96,7 +97,7 @@ async def test_safetytapetable_update_incorrect_version(setup_controller):
 
     # Insert a new document
     document = {"data": {"key": "value"}}
-    doc_id = await safety_tape_table.upsert(document)
+    doc_id, version = await safety_tape_table.upsert(document)
 
     # Attempt to update the document with an incorrect version
     updated_document = {"id": doc_id, "data": {"key": "new_value"}, "version": 99}
@@ -117,15 +118,15 @@ async def test_safetytapetable_concurrent_updates(setup_controller):
 
     # Insert a new document
     document = {"data": {"key": "value"}}
-    doc_id = await safety_tape_table.upsert(document)
+    doc_id, version = await safety_tape_table.upsert(document)
 
     # Define two update tasks with the same version
     async def update_task_1():
-        updated_document = {"id": doc_id, "data": {"key": "new_value_1"}, "version": 0}
+        updated_document = {"id": doc_id, "data": {"key": "new_value_1"}, "version": version}
         return await safety_tape_table.upsert(updated_document)
 
     async def update_task_2():
-        updated_document = {"id": doc_id, "data": {"key": "new_value_2"}, "version": 0}
+        updated_document = {"id": doc_id, "data": {"key": "new_value_2"}, "version": version}
         return await safety_tape_table.upsert(updated_document)
 
     # Run updates concurrently and catch version mismatches
@@ -133,14 +134,22 @@ async def test_safetytapetable_concurrent_updates(setup_controller):
     task_2 = asyncio.create_task(update_task_2())
     completed, pending = await asyncio.wait([task_1, task_2], return_when=asyncio.ALL_COMPLETED)
 
+    # Log results
+    for task in completed:
+        if task.exception():
+            print(f"Task failed: {task.exception()}")
+        else:
+            print(f"Task succeeded: {task.result()}")
+
     # Only one task should succeed
     successful_updates = [t.result() for t in completed if not t.exception()]
     assert len(successful_updates) == 1
 
     # Verify the final state of the document
-    result = await safety_tape_table.find(doc_id)
-    assert result["version"] == 1  # Version should be incremented once
-    assert result["data"] in [{"key": "new_value_1"}, {"key": "new_value_2"}]
+    final_document = await safety_tape_table.find(doc_id)
+    assert final_document["version"] == version + 1
+    assert final_document["data"] in [{"key": "new_value_1"}, {"key": "new_value_2"}]
+
 
 @pytest.mark.asyncio
 async def test_upsert_insert_returns_id_and_version(setup_table):
@@ -165,3 +174,90 @@ async def test_upsert_update_returns_id_and_version(setup_table):
 
     assert updated_id == id_value
     assert updated_version == version + 1
+
+
+@pytest.mark.asyncio
+async def test_model_insert_and_update(setup_table):
+    """Test inserting and updating Slime models with optimistic locking."""
+    # Insert a new Slime
+    slime = Monster(name="Slime", level=2)
+    await slime.save()
+    assert slime.id is not None
+    assert slime.version == 0
+
+    # Update the slime
+    slime.level += 1 # level up!
+    await slime.save()
+    assert slime.version == 1
+
+    # Attempt to update with incorrect version
+    slime.version = 99
+    with pytest.raises(RuntimeError, match="Version mismatch detected"):
+        await slime.save()
+
+@pytest.mark.asyncio
+async def test_slime_concurrent_updates(setup_table):
+    """Test concurrent updates to Monster models using optimistic locking."""
+    # Insert a Slime
+    slime = Monster(name="Metal Slime", level=11)
+    await slime.save()
+
+    # Define concurrent update tasks
+    async def update_task_1():
+        slime.level = 12
+        slime.attack = 11
+        await slime.save()
+
+    async def update_task_2():
+        slime.level = 14
+        slime.attack = 15
+        await slime.save()
+
+    # Run concurrent updates
+    task_1 = asyncio.create_task(update_task_1())
+    task_2 = asyncio.create_task(update_task_2())
+    completed, pending = await asyncio.wait([task_1, task_2], return_when=asyncio.ALL_COMPLETED)
+
+    # Verify one succeeded and the other failed
+    assert sum(1 for t in completed if t.exception() is None) == 1
+    assert sum(1 for t in completed if isinstance(t.exception(), RuntimeError)) == 1
+
+    # Verify final Slime state
+    final_slime = await Monster.from_id(slime.id)
+    assert final_slime.version == 1
+    assert final_slime.level in [12,14]
+
+@pytest.mark.asyncio
+async def test_monster_bulk_save(setup_table):
+    """Test bulk saving Monster models."""
+    # Create new Monster models
+    monsters = [
+        Monster(name="Slime", level=2),
+        Monster(name="Healslime", level=5),
+        Monster(name="Dragon", level=22),
+    ]
+
+    # Perform bulk save
+    ids = await Monster.bulk_save(monsters)
+
+    # Verify IDs and initial versions
+    assert len(ids) == len(monsters)
+    for monster, monster_id in zip(monsters, ids):
+        assert monster.id == monster_id
+        assert monster.version == 0  # Initial version should be 0
+
+    # Update existing Monster models
+    for monster in monsters:
+        monster.level += 1  # Level up all monsters
+        monster.attack += 5  # Increase attack
+
+    # Perform another bulk save
+    await Monster.bulk_save(monsters)
+
+    # Verify versions and updates
+    for monster in monsters:
+        assert monster.version == 1  # Version should increment
+        updated_monster = await Monster.from_id(monster.id)
+        assert updated_monster.level == monster.level  # Level should match
+        assert updated_monster.attack == monster.attack  # Attack should match
+        assert updated_monster.version == 1  # Version should match
