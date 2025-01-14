@@ -280,9 +280,6 @@ async def test_context_manager():
     assert controller._connection is None
 
 
-
-
-
 @pytest.mark.asyncio
 async def test_model_delete(setup_models):
     """Test deleting a model."""
@@ -371,7 +368,6 @@ async def test_model_json_ordering_with_filter(setup_models):
     assert len(models_desc) == 2
     assert models_desc[0].key1 == "Item C- JSON"  # Highest key2
     assert models_desc[1].key1 == "Item A- JSON"  # Second highest key2
-
 
 
 @pytest.mark.benchmark

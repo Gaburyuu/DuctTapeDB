@@ -1,6 +1,6 @@
 from src.ducttapedb.hookloopdb import HookLoopTable
 import json
-from typing import Any, Optional
+from typing import Any
 
 
 class SafetyTapeTable(HookLoopTable):
@@ -46,8 +46,6 @@ class SafetyTapeTable(HookLoopTable):
 
         await self.controller.commit()
 
-
-
     async def upsert(self, document: dict[Any, Any]) -> int:
         """
         Insert or update a document with optimistic locking.
@@ -74,9 +72,7 @@ class SafetyTapeTable(HookLoopTable):
             params = (json_data,)
         else:
             if version is None:
-                raise ValueError(
-                    "Version must be provided for updates in SafetyTape."
-                )
+                raise ValueError("Version must be provided for updates in SafetyTape.")
 
             # Update only if the version matches
             query = f"""
@@ -108,5 +104,9 @@ class SafetyTapeTable(HookLoopTable):
         cursor = await self.controller.execute(query, (doc_id,))
         result = await cursor.fetchone()
         if result:
-            return {"id": result[0], "version": result[1], "data": json.loads(result[2])}
+            return {
+                "id": result[0],
+                "version": result[1],
+                "data": json.loads(result[2]),
+            }
         return None

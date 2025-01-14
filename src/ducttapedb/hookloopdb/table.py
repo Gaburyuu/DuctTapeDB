@@ -11,7 +11,7 @@ class HookLoopTable:
     def __init__(self, controller: AsyncSQLiteController, table_name: str):
         self.controller = controller
         self.table_name = table_name
-        self.columns: list[Optional[str]] = []  #the non-data columns
+        self.columns: list[Optional[str]] = []  # the non-data columns
 
     @property
     def connection(self) -> Aioconnection:
@@ -50,7 +50,6 @@ class HookLoopTable:
         cursor = await self.controller.execute(query)
         columns = [row[1] for row in await cursor.fetchall()]
         return [col for col in columns if col != "data"]
-
 
     async def upsert(self, document: dict[Any, Any]) -> int:
         """Insert or update a document."""
@@ -105,7 +104,7 @@ class HookLoopTable:
             document = {col: row[i] for i, col in enumerate(self.columns)}
             document["data"] = json.loads(row[-1])
             results.append(document)
-            
+
         return results
 
     async def search(self, conditions: dict[str, Any]) -> list[dict]:
@@ -271,7 +270,9 @@ class HookLoopTable:
         Returns:
             T: An instance of the calling class.
         """
-        controller = await AsyncSQLiteController.create_memory(shared_cache=shared_cache)
+        controller = await AsyncSQLiteController.create_memory(
+            shared_cache=shared_cache
+        )
         table = cls(controller, table_name)  # Dynamically instantiate the calling class
         await table.initialize()
         return table

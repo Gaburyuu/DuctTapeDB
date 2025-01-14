@@ -38,7 +38,7 @@ class AsyncSQLiteController:
             if self._connection:
                 await self._connection.close()
                 self._connection = None
-                
+
     async def __aenter__(self):
         if not self._connection:
             await self.connect()  # Ensure connection is established

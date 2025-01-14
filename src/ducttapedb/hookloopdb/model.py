@@ -140,13 +140,12 @@ class HookLoopModel(BaseModel):
         async with cls._table.controller._semaphore:  # Ensure concurrency control
             cursor = await cls._table.controller.execute(query, params)
             rows = [
-                {"id": row[0], "data": json.loads(row[1])} for row in await cursor.fetchall()
+                {"id": row[0], "data": json.loads(row[1])}
+                for row in await cursor.fetchall()
             ]
 
         # Convert rows into model instances
         return [await cls.from_db_row(row) for row in rows]
-
-
 
     async def save(self) -> int:
         if not self._table:
