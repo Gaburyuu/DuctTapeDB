@@ -1,13 +1,17 @@
 import json
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar, Type
 from .controller import AsyncSQLiteController
 from aiosqlite import Connection as Aioconnection
+
+
+T = TypeVar("T", bound="HookLoopTable")  # T is bound to HookLoopTable or its subclasses
 
 
 class HookLoopTable:
     def __init__(self, controller: AsyncSQLiteController, table_name: str):
         self.controller = controller
         self.table_name = table_name
+        self.columns: list[Optional[str]] = []  #the non-data columns
 
     @property
     def connection(self) -> Aioconnection:
@@ -30,6 +34,23 @@ class HookLoopTable:
                 ON {self.table_name} (json_extract(data, '$.{index}'))
             """
             await self.controller.execute(index_query)
+
+        # load the cols the first time
+        self.columns = await self.get_non_data_columns()
+
+    async def get_non_data_columns(self) -> list[str]:
+        """
+        Retrieve non-`data` columns from the table schema.
+        This method queries the table schema to identify all columns except `data`.
+
+        Returns:
+            list[str]: A list of column names excluding `data`.
+        """
+        query = f"PRAGMA table_info({self.table_name})"
+        cursor = await self.controller.execute(query)
+        columns = [row[1] for row in await cursor.fetchall()]
+        return [col for col in columns if col != "data"]
+
 
     async def upsert(self, document: dict[Any, Any]) -> int:
         """Insert or update a document."""
@@ -57,7 +78,9 @@ class HookLoopTable:
         cursor = await self.controller.execute(query, (doc_id,))
         result = await cursor.fetchone()
         if result:
-            return {"id": result[0], "data": json.loads(result[1])}
+            document = {col: result[i] for i, col in enumerate(self.columns)}
+            document["data"] = json.loads(result[-1])
+            return document
         return None
 
     async def search_basic(self, key: str, value: Any) -> list[dict]:
@@ -76,9 +99,13 @@ class HookLoopTable:
             WHERE json_extract(data, '$.' || ?) = ?
         """
         cursor = await self.controller.execute(query, (key, value))
-        results = [
-            {"id": row[0], "data": json.loads(row[1])} for row in cursor.fetchall()
-        ]
+
+        results = []
+        for row in await cursor.fetchall():
+            document = {col: row[i] for i, col in enumerate(self.columns)}
+            document["data"] = json.loads(row[-1])
+            results.append(document)
+            
         return results
 
     async def search(self, conditions: dict[str, Any]) -> list[dict]:
@@ -124,10 +151,12 @@ class HookLoopTable:
 
         # Execute the query
         cursor = await self.connection.execute(query, params)
-        results = [
-            {"id": row[0], "data": json.loads(row[1])}
-            for row in await cursor.fetchall()
-        ]
+
+        results = []
+        for row in await cursor.fetchall():
+            document = {col: row[i] for i, col in enumerate(self.columns)}
+            document["data"] = json.loads(row[-1])
+            results.append(document)
         return results
 
     async def search_all(
@@ -158,10 +187,14 @@ class HookLoopTable:
 
         query = f"SELECT id, data FROM {self.table_name} {clause}"
         cursor = await self.controller.execute(query)
-        return [
-            {"id": row[0], "data": json.loads(row[1])}
-            for row in await cursor.fetchall()
-        ]
+
+        results = []
+        for row in await cursor.fetchall():
+            document = {col: row[i] for i, col in enumerate(self.columns)}
+            document["data"] = json.loads(row[-1])
+            results.append(document)
+
+        return results
 
     async def search_advanced(self, filters: list[dict[str, Any]]) -> list[dict]:
         """Advanced search with multiple conditions.
@@ -202,10 +235,13 @@ class HookLoopTable:
             WHERE {' AND '.join(conditions)}
         """
         cursor = await self.controller.execute(query, params)
-        return [
-            {"id": row[0], "data": json.loads(row[1])}
-            for row in await cursor.fetchall()
-        ]
+        results = []
+        for row in await cursor.fetchall():
+            document = {col: row[i] for i, col in enumerate(self.columns)}
+            document["data"] = json.loads(row[-1])
+            results.append(document)
+
+        return results
 
     async def delete_document(self, id: int):
         """Delete a document by its unique ID.
@@ -222,43 +258,39 @@ class HookLoopTable:
 
     @classmethod
     async def create_memory(
-        cls, table_name: str, shared_cache: bool = False
-    ) -> "HookLoopTable":
+        cls: Type[T], table_name: str, shared_cache: bool = True
+    ) -> T:  # Return type is T, dynamically tied to the calling class
         """
-        Factory method to create a HookLoopTable with an in-memory SQLite database.
+        Factory method to create a HookLoopTable or its subclass with an in-memory SQLite database.
 
         Args:
+            cls (Type[T]): The class being instantiated.
             table_name (str): The name of the table to be managed by this instance.
             shared_cache (bool): If True, creates a shared-cache in-memory database.
 
         Returns:
-            HookLoopTable: An instance of HookLoopTable with an in-memory database.
-
-        Warning:
-            In-memory databases are volatile and will lose all data once the application shuts down.
-            Use this only for testing or temporary storage.
+            T: An instance of the calling class.
         """
-        controller = await AsyncSQLiteController.create_memory(
-            shared_cache=shared_cache
-        )
-        table = cls(controller, table_name)
+        controller = await AsyncSQLiteController.create_memory(shared_cache=shared_cache)
+        table = cls(controller, table_name)  # Dynamically instantiate the calling class
         await table.initialize()
         return table
 
     @classmethod
     async def create_file(
-        cls, table_name: str, filepath: str, uri: bool = False
-    ) -> "HookLoopTable":
+        cls: Type[T], table_name: str, filepath: str, uri: bool = False
+    ) -> T:
         """
-        Factory method to create a HookLoopTable with a file-based SQLite database.
+        Factory method to create a HookLoopTable or its subclass with a file-based SQLite database.
 
         Args:
+            cls (Type[T]): The class being instantiated.
             table_name (str): The name of the table to be managed by this instance.
             filepath (str): The path to the SQLite database file.
             uri (bool): If True, treat `filepath` as a URI.
 
         Returns:
-            HookLoopTable: An instance of HookLoopTable with a file-based database.
+            T: An instance of the calling class.
 
         Warning:
             Ensure that the specified filepath is secure and accessible, especially if multiple
@@ -266,6 +298,6 @@ class HookLoopTable:
             thread-safe with Write-Ahead Logging (WAL) mode but still has concurrency limitations.
         """
         controller = await AsyncSQLiteController.create_file(filepath, uri=uri)
-        table = cls(controller, table_name)
+        table = cls(controller, table_name)  # Dynamically instantiate the calling class
         await table.initialize()
         return table
