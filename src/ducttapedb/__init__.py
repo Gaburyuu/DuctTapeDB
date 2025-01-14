@@ -7,7 +7,9 @@ from .hookloopdb import (
     HookLoopModel,
     HookLoopTable,
 )
-
+from .safetytapedb import (
+    SafetyTapeTable,
+)
 # Explicitly define the public API
 __all__ = [
     "DuctTapeDB",
@@ -15,4 +17,5 @@ __all__ = [
     "validators",
     "HookLoopModel",
     "HookLoopTable",
+    "SafetyTapeTable",
 ]
