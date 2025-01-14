@@ -3,6 +3,7 @@ import pytest_asyncio
 import asyncio
 from src import (
     SafetyTapeTable,
+    SafetyTapeModel,
 )
 from src.ducttapedb.hookloopdb.controller import AsyncSQLiteController
 from typing import Optional
@@ -16,6 +17,19 @@ async def setup_controller():
     yield controller
     await controller.close()
 
+
+class Plushy(SafetyTapeModel):
+    name: str
+    softness: int
+
+@pytest_asyncio.fixture
+async def setup_table(setup_controller):
+    """Fixture to set up a SafetyTapeTable and the Plushy model."""
+    table_name = "plushy_table"
+    table = SafetyTapeTable(setup_controller, table_name)
+    await table.initialize()
+    Plushy.set_table(table)
+    yield table
 
 
 @pytest.mark.asyncio
@@ -127,3 +141,27 @@ async def test_safetytapetable_concurrent_updates(setup_controller):
     result = await safety_tape_table.find(doc_id)
     assert result["version"] == 1  # Version should be incremented once
     assert result["data"] in [{"key": "new_value_1"}, {"key": "new_value_2"}]
+
+@pytest.mark.asyncio
+async def test_upsert_insert_returns_id_and_version(setup_table):
+    """Test that upsert returns the correct ID and version for inserts."""
+    table = setup_table
+    document = {"data": {"name": "Cuddly", "softness": 5}}
+    id_value, version = await table.upsert(document)
+
+    assert id_value is not None
+    assert version == 0
+
+@pytest.mark.asyncio
+async def test_upsert_update_returns_id_and_version(setup_table):
+    """Test that upsert returns the correct ID and version for updates."""
+    table = setup_table
+    document = {"data": {"name": "Squishy", "softness": 10}}
+    id_value, version = await table.upsert(document)
+
+    # Update the document
+    updated_document = {"id": id_value, "version": version, "data": {"name": "Squishy", "softness": 8}}
+    updated_id, updated_version = await table.upsert(updated_document)
+
+    assert updated_id == id_value
+    assert updated_version == version + 1

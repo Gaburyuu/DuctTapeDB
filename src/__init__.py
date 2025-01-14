@@ -5,6 +5,7 @@ from .ducttapedb import (
     HookLoopModel,
     HookLoopTable,
     SafetyTapeTable,
+    SafetyTapeModel,
 )
 
 # Explicitly define the public API
@@ -15,4 +16,5 @@ __all__ = [
     "HookLoopModel",
     "HookLoopTable",
     "SafetyTapeTable",
+    "SafetyTapeModel",
 ]

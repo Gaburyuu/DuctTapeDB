@@ -48,7 +48,7 @@ class SafetyTapeTable(HookLoopTable):
 
         self.columns = await self.get_non_data_columns()
 
-    async def upsert(self, document: dict[Any, Any]) -> int:
+    async def upsert(self, document: dict[Any, Any]) -> tuple[int, int]:
         """
         Insert or update a document with optimistic locking.
 
@@ -58,7 +58,9 @@ class SafetyTapeTable(HookLoopTable):
                 - `version` (int, optional): The current version of the document.
 
         Returns:
-            int: The ID of the inserted or updated document.
+            tuple[int, int]: A tuple containing:
+                - The ID of the inserted or updated document.
+                - The version of the inserted or updated document.
 
         Raises:
             RuntimeError: If the update fails due to a version mismatch.
@@ -69,26 +71,33 @@ class SafetyTapeTable(HookLoopTable):
         version = document.get("version")
 
         if id_value is None:
-            # Insert a new document with version 0
-            query = f"INSERT INTO {self.table_name} (version, data) VALUES (0, json(?))"
+            # Insert a new document with version 0 and return id, version
+            query = f"""
+                INSERT INTO {self.table_name} (version, data)
+                VALUES (0, json(?))
+                RETURNING id, version
+            """
             params = (json_data,)
         else:
             if version is None:
                 raise ValueError("Version must be provided for updates in SafetyTape.")
 
-            # Update only if the version matches
+            # Update the document with optimistic locking and return id, version
             query = f"""
                 UPDATE {self.table_name}
                 SET data = json(?), version = version + 1
                 WHERE id = ? AND version = ?
+                RETURNING id, version
             """
             params = (json_data, id_value, version)
 
         async with self.controller._connection.execute(query, params) as cursor:
-            await self.controller.commit()
-            if cursor.rowcount == 0:  # No rows affected, indicating a version mismatch
+            result = await cursor.fetchone()
+            if result is None:  # No rows affected, indicating a version mismatch
                 raise RuntimeError(
                     f"Update failed for id={id_value}. Version mismatch detected."
                 )
-            return id_value or cursor.lastrowid
+
+        return result[0], result[1]
+
 

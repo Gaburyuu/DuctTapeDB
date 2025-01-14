@@ -9,6 +9,7 @@ from .hookloopdb import (
 )
 from .safetytapedb import (
     SafetyTapeTable,
+    SafetyTapeModel,
 )
 # Explicitly define the public API
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "HookLoopModel",
     "HookLoopTable",
     "SafetyTapeTable",
+    "SafetyTapeModel",
 ]
