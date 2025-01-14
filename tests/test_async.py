@@ -27,7 +27,7 @@ async def setup_table():
 @pytest_asyncio.fixture
 async def setup_models(setup_table):
     """Fixture to initialize HookLoopModel with the table."""
-    HookLoopModel.set_table(setup_table)
+    HookLoopModelTest.set_table(setup_table)
     yield
 
 
@@ -252,9 +252,10 @@ async def test_search_advanced_operators(setup_table):
 @pytest.mark.asyncio
 async def test_context_manager():
     """Test the AsyncSQLiteController context manager."""
-    async with await AsyncSQLiteController.create_memory(
-        shared_cache=True
-    ) as controller:
+    # Create an in-memory controller
+    controller = await AsyncSQLiteController.create_memory(shared_cache=True)
+
+    async with controller:
         # Verify connection is open
         assert controller._connection is not None
 
@@ -269,8 +270,17 @@ async def test_context_manager():
         rows = [row[0] async for row in cursor]
         assert rows == ["Test Name"]
 
-    # After exiting the context, the connection should be closed
+    # After exiting the context manager, the connection should remain open
+    assert controller._connection is not None
+
+    # Manually close the connection
+    await controller.close()
+
+    # Verify the connection is closed
     assert controller._connection is None
+
+
+
 
 
 @pytest.mark.asyncio
@@ -320,13 +330,14 @@ async def test_search_advanced_with_in_and_conditions(setup_table):
 
 
 @pytest.mark.asyncio
-async def test_model_json_ordering(setup_models):
-    """Test models_from_db with ordering by a JSON field."""
+async def test_model_json_ordering_with_filter(setup_models):
+    """Test models_from_db with ordering by a JSON field and filtering on key1."""
+
     # Create and save multiple models
-    model1 = HookLoopModelTest(id=None, key1="Item A", key2=15)
-    model2 = HookLoopModelTest(id=None, key1="Item B", key2=9)
-    model3 = HookLoopModelTest(id=None, key1="Item C", key2=19)
-    model4 = HookLoopModelTest(id=None, key1="Item D", key2=12)
+    model1 = HookLoopModelTest(id=None, key1="Item A- JSON", key2=15)
+    model2 = HookLoopModelTest(id=None, key1="Item B- JSON", key2=9)
+    model3 = HookLoopModelTest(id=None, key1="Item C- JSON", key2=19)
+    model4 = HookLoopModelTest(id=None, key1="Item D- JSON", key2=12)
 
     # Save models to the database
     await model1.save()
@@ -334,27 +345,33 @@ async def test_model_json_ordering(setup_models):
     await model3.save()
     await model4.save()
 
-    # Retrieve models ordered by `key2` (ascending)
+    # Retrieve models ordered by `key2` (ascending) with filtering on `key1`
     models_asc = await HookLoopModelTest.models_from_db(
-        order_by='json_extract(data, "$.key2") ASC'
+        order_by='json_extract(data, "$.key2") ASC',
+        filter_sql="json_extract(data, '$.key1') LIKE ?",
+        filter_params=["%JSON"],  # Filter for key1 ending with '- JSON'
     )
 
     # Verify the models are sorted correctly
     assert len(models_asc) == 4
-    assert models_asc[0].key1 == "Item B"  # Lowest key2
-    assert models_asc[1].key1 == "Item D"
-    assert models_asc[2].key1 == "Item A"
-    assert models_asc[3].key1 == "Item C"  # Highest key2
+    assert models_asc[0].key1 == "Item B- JSON"  # Lowest key2
+    assert models_asc[1].key1 == "Item D- JSON"
+    assert models_asc[2].key1 == "Item A- JSON"
+    assert models_asc[3].key1 == "Item C- JSON"  # Highest key2
 
-    # Retrieve models ordered by `key2` (descending) with a limit
+    # Retrieve models ordered by `key2` (descending) with a limit and filtering on `key1`
     models_desc = await HookLoopModelTest.models_from_db(
-        order_by='json_extract(data, "$.key2") DESC', limit=2
+        order_by='json_extract(data, "$.key2") DESC',
+        limit=2,
+        filter_sql="json_extract(data, '$.key1') LIKE ?",
+        filter_params=["%JSON"],  # Filter for key1 ending with '- JSON'
     )
 
     # Verify the models are sorted correctly in descending order
     assert len(models_desc) == 2
-    assert models_desc[0].key1 == "Item C"  # Highest key2
-    assert models_desc[1].key1 == "Item A"  # Second highest key2
+    assert models_desc[0].key1 == "Item C- JSON"  # Highest key2
+    assert models_desc[1].key1 == "Item A- JSON"  # Second highest key2
+
 
 
 @pytest.mark.benchmark

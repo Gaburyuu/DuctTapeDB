@@ -2,6 +2,7 @@ from typing import TypeVar, Type, Optional
 from pydantic import BaseModel
 from .table import HookLoopTable
 from typing import Any
+import json
 
 T = TypeVar("T", bound="HookLoopModel")
 
@@ -94,24 +95,58 @@ class HookLoopModel(BaseModel):
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         order_by: str = "id ASC",
+        filter_sql: Optional[str] = None,
+        filter_params: Optional[list[Any]] = None,
     ) -> list[T]:
-        """Retrieve rows from the database table and convert them into model instances.
+        """
+        Retrieve rows from the database table and convert them into model instances.
 
         Args:
             limit (Optional[int]): The maximum number of rows to return. Defaults to None (no limit).
             offset (Optional[int]): The number of rows to skip before starting to return rows. Defaults to None (no offset).
             order_by (str): The column or SQL expression to order by (e.g., 'id ASC', 'json_extract(data, "$.key") DESC').
+            filter_sql (Optional[str]): A raw SQL filter condition to apply to the query.
+            filter_params (Optional[list[Any]]): Parameters for the SQL filter condition.
 
         Returns:
             list[T]: A list of model instances corresponding to the retrieved rows.
+
+        Raises:
+            ValueError: If no table is set for this model.
         """
         if not cls._table:
             raise ValueError("No table is set for this model.")
 
-        rows = await cls._table.search_all(
-            limit=limit, offset=offset, order_by=order_by
-        )
+        # Base query
+        query = f"SELECT id, data FROM {cls._table.table_name}"
+        params = filter_params or []
+
+        # Add filtering if provided
+        if filter_sql:
+            query += " WHERE " + filter_sql
+
+        # Add ordering
+        query += " ORDER BY " + order_by
+
+        # Add limit and offset
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+        if offset is not None:
+            query += " OFFSET ?"
+            params.append(offset)
+
+        # Execute the parameterized query
+        async with cls._table.controller._semaphore:  # Ensure concurrency control
+            cursor = await cls._table.controller.execute(query, params)
+            rows = [
+                {"id": row[0], "data": json.loads(row[1])} for row in await cursor.fetchall()
+            ]
+
+        # Convert rows into model instances
         return [await cls.from_db_row(row) for row in rows]
+
+
 
     async def save(self) -> int:
         if not self._table:
