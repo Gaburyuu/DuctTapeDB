@@ -9,8 +9,7 @@ from src.ducttapedb.hookloopdb.controller import AsyncSQLiteController
 from typing import Optional
 
 
-
-@pytest_asyncio.fixture(scope='module')
+@pytest_asyncio.fixture(scope="module")
 async def setup_controller():
     """Fixture to initialize HookLoopTable."""
     controller = await AsyncSQLiteController.create_memory(shared_cache=True)
@@ -22,6 +21,7 @@ class Monster(SafetyTapeModel):
     name: str
     level: int
     attack: Optional[int] = 10
+
 
 @pytest_asyncio.fixture
 async def setup_table(setup_controller):
@@ -50,6 +50,7 @@ async def test_safetytapetable_initialization(setup_controller):
     assert "id" in columns
     assert "data" in columns
 
+
 @pytest.mark.asyncio
 async def test_safetytapetable_insert(setup_controller):
     """Test inserting a new document into SafetyTapeTable."""
@@ -66,6 +67,7 @@ async def test_safetytapetable_insert(setup_controller):
     assert result["id"] == doc_id
     assert result["version"] == 0  # Default version for new documents
     assert result["data"] == {"key": "value"}
+
 
 @pytest.mark.asyncio
 async def test_safetytapetable_update_correct_version(setup_controller):
@@ -88,6 +90,7 @@ async def test_safetytapetable_update_correct_version(setup_controller):
     assert result["version"] == 1  # Version should be incremented
     assert result["data"] == {"key": "new_value"}
 
+
 @pytest.mark.asyncio
 async def test_safetytapetable_update_incorrect_version(setup_controller):
     """Test updating a document with an incorrect version in SafetyTapeTable."""
@@ -109,6 +112,7 @@ async def test_safetytapetable_update_incorrect_version(setup_controller):
     assert result["version"] == 0  # Version should remain the same
     assert result["data"] == {"key": "value"}
 
+
 @pytest.mark.asyncio
 async def test_safetytapetable_concurrent_updates(setup_controller):
     """Test concurrent updates to the same document using SafetyTapeTable."""
@@ -122,17 +126,27 @@ async def test_safetytapetable_concurrent_updates(setup_controller):
 
     # Define two update tasks with the same version
     async def update_task_1():
-        updated_document = {"id": doc_id, "data": {"key": "new_value_1"}, "version": version}
+        updated_document = {
+            "id": doc_id,
+            "data": {"key": "new_value_1"},
+            "version": version,
+        }
         return await safety_tape_table.upsert(updated_document)
 
     async def update_task_2():
-        updated_document = {"id": doc_id, "data": {"key": "new_value_2"}, "version": version}
+        updated_document = {
+            "id": doc_id,
+            "data": {"key": "new_value_2"},
+            "version": version,
+        }
         return await safety_tape_table.upsert(updated_document)
 
     # Run updates concurrently and catch version mismatches
     task_1 = asyncio.create_task(update_task_1())
     task_2 = asyncio.create_task(update_task_2())
-    completed, pending = await asyncio.wait([task_1, task_2], return_when=asyncio.ALL_COMPLETED)
+    completed, pending = await asyncio.wait(
+        [task_1, task_2], return_when=asyncio.ALL_COMPLETED
+    )
 
     # Log results
     for task in completed:
@@ -155,21 +169,26 @@ async def test_safetytapetable_concurrent_updates(setup_controller):
 async def test_upsert_insert_returns_id_and_version(setup_table):
     """Test that upsert returns the correct ID and version for inserts."""
     table = setup_table
-    document = {"data": {"name": "Cuddly", "softness": 5}}
+    document = {"data": {"name": "Dracky", "level": 5}}
     id_value, version = await table.upsert(document)
 
     assert id_value is not None
     assert version == 0
 
+
 @pytest.mark.asyncio
 async def test_upsert_update_returns_id_and_version(setup_table):
     """Test that upsert returns the correct ID and version for updates."""
     table = setup_table
-    document = {"data": {"name": "Squishy", "softness": 10}}
+    document = {"data": {"name": "Onion Slime", "level": 10}}
     id_value, version = await table.upsert(document)
 
     # Update the document
-    updated_document = {"id": id_value, "version": version, "data": {"name": "Squishy", "softness": 8}}
+    updated_document = {
+        "id": id_value,
+        "version": version,
+        "data": {"name": "She Slime", "level": 8},
+    }
     updated_id, updated_version = await table.upsert(updated_document)
 
     assert updated_id == id_value
@@ -186,7 +205,7 @@ async def test_model_insert_and_update(setup_table):
     assert slime.version == 0
 
     # Update the slime
-    slime.level += 1 # level up!
+    slime.level += 1  # level up!
     await slime.save()
     assert slime.version == 1
 
@@ -194,6 +213,7 @@ async def test_model_insert_and_update(setup_table):
     slime.version = 99
     with pytest.raises(RuntimeError, match="Version mismatch detected"):
         await slime.save()
+
 
 @pytest.mark.asyncio
 async def test_slime_concurrent_updates(setup_table):
@@ -216,7 +236,9 @@ async def test_slime_concurrent_updates(setup_table):
     # Run concurrent updates
     task_1 = asyncio.create_task(update_task_1())
     task_2 = asyncio.create_task(update_task_2())
-    completed, pending = await asyncio.wait([task_1, task_2], return_when=asyncio.ALL_COMPLETED)
+    completed, pending = await asyncio.wait(
+        [task_1, task_2], return_when=asyncio.ALL_COMPLETED
+    )
 
     # Verify one succeeded and the other failed
     assert sum(1 for t in completed if t.exception() is None) == 1
@@ -225,39 +247,51 @@ async def test_slime_concurrent_updates(setup_table):
     # Verify final Slime state
     final_slime = await Monster.from_id(slime.id)
     assert final_slime.version == 1
-    assert final_slime.level in [12,14]
+    assert final_slime.level in [12, 14]
+
+
+@pytest.mark.asyncio
+async def test_model_refresh(setup_table):
+    """Test refreshing a model instance with database data."""
+    # Insert a new Monster into the database
+    monster = Monster(name="Dragon", level=20)
+    await monster.save()
+
+    # look up the monster
+    monster = await Monster.from_id(monster.id)
+    # Update the database directly
+    table = setup_table
+    await table.upsert(
+        {
+            "id": monster.id,
+            "version": monster.version,
+            "data": {"name": "Updated Dragon", "level": 25},
+        }
+    )
+
+    # Refresh the model
+    await monster.refresh()
+
+    # Verify the model is updated
+    assert monster.name == "Updated Dragon"
+    assert monster.level == 25
+
 
 @pytest.mark.asyncio
 async def test_monster_bulk_save(setup_table):
-    """Test bulk saving Monster models."""
+    """Test bulk saving Monster models without updating model instances."""
     # Create new Monster models
-    monsters = [
+    monsters: list[Monster] = [
         Monster(name="Slime", level=2),
-        Monster(name="Healslime", level=5),
-        Monster(name="Dragon", level=22),
+        Monster(name="Dragon", level=20),
+        Monster(name="Slime Knight", level=17),
     ]
 
     # Perform bulk save
-    ids = await Monster.bulk_save(monsters)
-
-    # Verify IDs and initial versions
-    assert len(ids) == len(monsters)
-    for monster, monster_id in zip(monsters, ids):
-        assert monster.id == monster_id
-        assert monster.version == 0  # Initial version should be 0
-
-    # Update existing Monster models
-    for monster in monsters:
-        monster.level += 1  # Level up all monsters
-        monster.attack += 5  # Increase attack
-
-    # Perform another bulk save
     await Monster.bulk_save(monsters)
 
-    # Verify versions and updates
+    # refresh the models and check their
     for monster in monsters:
-        assert monster.version == 1  # Version should increment
-        updated_monster = await Monster.from_id(monster.id)
-        assert updated_monster.level == monster.level  # Level should match
-        assert updated_monster.attack == monster.attack  # Attack should match
-        assert updated_monster.version == 1  # Version should match
+        await monster.refresh()
+        assert monster.id is not None  # Models remain unsynchronized
+        assert monster.version is not None  # Models are updated

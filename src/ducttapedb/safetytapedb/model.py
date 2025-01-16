@@ -1,13 +1,13 @@
 from typing import TypeVar, Type, Optional
-from pydantic import BaseModel
 from .table import SafetyTapeTable
 from typing import Any
 import json
+from ..hookloopdb.model import HookLoopModel
 
 T = TypeVar("T", bound="SafetyTapeModel")
 
 
-class SafetyTapeModel(BaseModel):
+class SafetyTapeModel(HookLoopModel):
     id: Optional[int] = None
     version: Optional[int] = None  # Add version field
     _table: Optional[SafetyTapeTable] = None
@@ -76,7 +76,9 @@ class SafetyTapeModel(BaseModel):
 
     @classmethod
     async def from_db_row(cls: Type[T], data: dict[str, Any]) -> T:
-        return cls.model_validate({"id": data["id"], "version": data["version"], **data["data"]})
+        return cls.model_validate(
+            {"id": data["id"], "version": data["version"], **data["data"]}
+        )
 
     @classmethod
     async def models_from_db(
@@ -112,7 +114,6 @@ class SafetyTapeModel(BaseModel):
 
         return [await cls.from_db_row(row) for row in rows]
 
-    
     async def save(self) -> int:
         if not self._table:
             raise ValueError("No table is set for this model.")
@@ -123,69 +124,25 @@ class SafetyTapeModel(BaseModel):
         return self.id
 
     @classmethod
-    async def bulk_save(cls, models: list["SafetyTapeModel"]) -> list[int]:
+    async def bulk_save(cls, models: list["SafetyTapeModel"]) -> None:
         """
-        Save multiple models at once, ensuring model instances are updated
-        with the correct `id` and `version` from the database.
+        Save multiple models at once.
 
         Note:
-            This method does NOT enforce optimistic locking. It performs inserts
-            for new models and updates existing ones without version checks.
+            This method enforces optimistic locking and ensures all models are
+            synchronized with the database by calling `.save()` followed by `.refresh()`.
+            Perhaps this will eventually be upgraded to use executemany, but for
+            now it's just a convenience wrapper inside of SafetyTapeModel.
+            HookLoopModel has a faster method with executemany.
 
         Args:
             models (list[SafetyTapeModel]): List of models to save.
-
-        Returns:
-            list[int]: A list of IDs for the saved models.
         """
         if not all(isinstance(model, cls) for model in models):
             raise ValueError(
                 "All models must be instances of the calling class or its subclasses."
             )
 
-        if not cls._table:
-            raise ValueError("No table is set for this model.")
-
-        # Separate new and existing models
-        new_models = [model for model in models if model.id is None]
-        existing_models = [model for model in models if model.id is not None]
-
-        results = []
-
-        conn = cls._table.connection
-        async with conn.execute("BEGIN TRANSACTION"):
-            # Bulk insert for new models
-            if new_models:
-                insert_query = f"""
-                    INSERT INTO {cls._table.table_name} (version, data)
-                    VALUES (0, json(?))
-                    RETURNING id, version
-                """
-                insert_params = [model.model_dump_json(exclude={"id", "version"}) for model in new_models]
-                async with conn.executemany(insert_query, [(data,) for data in insert_params]) as cursor:
-                    for model, row in zip(new_models, await cursor.fetchall()):
-                        model.id, model.version = row
-                        results.append(model.id)
-
-            # Bulk update for existing models
-            if existing_models:
-                update_query = f"""
-                    UPDATE {cls._table.table_name}
-                    SET data = json(?), version = version + 1
-                    WHERE id = ?
-                    RETURNING id, version
-                """
-                update_params = [
-                    (model.model_dump_json(exclude={"id", "version"}), model.id)
-                    for model in existing_models
-                ]
-                async with conn.executemany(update_query, update_params) as cursor:
-                    for model, row in zip(existing_models, await cursor.fetchall()):
-                        model.id, model.version = row
-                        results.append(model.id)
-
-            await conn.commit()
-
-        return results
-
-
+        for model in models:
+            await model.save()
+            await model.refresh()

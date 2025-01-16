@@ -154,6 +154,41 @@ class HookLoopModel(BaseModel):
         self.id = await self._table.upsert({"id": self.id, "data": data})
         return self.id
 
+    async def refresh(self) -> None:
+        """
+        Refresh the model instance with the current state from the database.
+
+        Updates only the fields defined in the model, based on `self.model_fields_set`.
+
+        Raises:
+            ValueError: If the model has no ID or the table is not set.
+            RuntimeError: If the document is not found in the database.
+        """
+
+        if not self._table:
+            raise ValueError("No table is set for this model.")
+        if not self.id:
+            raise ValueError("Cannot refresh a model without an ID.")
+
+        # Retrieve the document from the database
+        document = await self._table.find(self.id)
+        if not document:
+            raise RuntimeError(f"Document with id={self.id} not found.")
+
+        # Extract relevant fields based on model_fields_set
+        updated_data = {
+            field: document.get(field)
+            for field in self.model_fields_set
+            if field in document
+        }
+
+        # Unpack 'data' and merge with the rest of the fields
+        updated_data.update(document.get("data", {}))
+
+        # Update the model's fields
+        for field, value in updated_data.items():
+            setattr(self, field, value)
+
     @classmethod
     async def bulk_save(cls, models: list["HookLoopModel"]) -> list[int]:
         """

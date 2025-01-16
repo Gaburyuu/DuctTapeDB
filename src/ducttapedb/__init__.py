@@ -11,6 +11,7 @@ from .safetytapedb import (
     SafetyTapeTable,
     SafetyTapeModel,
 )
+
 # Explicitly define the public API
 __all__ = [
     "DuctTapeDB",

@@ -76,7 +76,9 @@ class SafetyTapeTable(HookLoopTable):
                 VALUES (0, json(?))
                 RETURNING id, version
             """
-            params = [json_data,]
+            params = [
+                json_data,
+            ]
         else:
             if version is None:
                 raise ValueError("Version must be provided for updates in SafetyTape.")
@@ -96,5 +98,3 @@ class SafetyTapeTable(HookLoopTable):
                 )
 
         return result[0], result[1]
-
-
