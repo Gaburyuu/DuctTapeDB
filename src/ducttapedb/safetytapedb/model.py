@@ -261,3 +261,23 @@ class SafetyTapeModel(HookLoopModel):
             raise RuntimeError(
                 f"Document with id={doc_id} not found or is not soft-deleted."
             )
+
+    async def validate_version(self) -> bool:
+        """
+        Validate that the model's version matches the database.
+
+        Returns:
+            bool: True if the version matches, False otherwise.
+        """
+        if not self._table:
+            raise ValueError("No table is set for this model.")
+        if not self.id:
+            raise ValueError("Cannot validate version for a model without an ID.")
+
+        query = f"SELECT version FROM {self._table.table_name} WHERE id = ?"
+        cursor = await self._table.controller.execute(query, (self.id,))
+        result = await cursor.fetchone()
+        if result is None:
+            raise RuntimeError(f"Document with id={self.id} not found.")
+
+        return self.version == result[0]
