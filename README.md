@@ -14,13 +14,20 @@ Originally created for a hobby project, DuctTapeDB has evolved into a powerful t
 - **Async and Sync Support**:
   - **HookLoopDB** (Async): Feature-rich and optimized for modern async workflows.
   - **DuctTapeDB** (Sync): A straightforward synchronous option, with plans to align features across both modes.
-
+- **Dataloss Safety and Optimism**:
+  - **SafetyTapeDB** (Async):
+    - **Optimistic Locking**: Automatically version updates.
+    - **Soft Deletes**: Built-in support for marking records as deleted without losing data.
+    - **Automatic Timestamps**: Tracks `created_at` and `updated_at` for all records.
 ---
 
 ## **Features**
 
 - **Simple Persistence**: Automatically save and retrieve Pydantic models with minimal code.
 - **Advanced Querying**: Query data using JSON fields and SQL expressions.
+- **Soft Deletes**: Mark records as deleted while keeping them recoverable.
+- **Restore Functionality**: Easily restore soft-deleted records by ID.
+- **Automatic Timestamps**: Tracks record creation and updates with `created_at` and `updated_at`.
 - **Async and Sync Options**: Use what fits your project best.
 - **FastAPI Integration**: Quickly build APIs with CRUD functionality.
 - **SQLite-Powered**: Works anywhere—no need for additional infrastructure.
@@ -48,9 +55,9 @@ pip install fastapi fastui pydantic
 ### 1. Define Your Pydantic Model
 
 ```python
-from ducttapedb.hookloopdb.model import HookLoopModel
+from ducttapedb import SafetyTapeModel
 
-class Item(HookLoopModel):
+class Item(SafetyTapeModel):
     name: str
     description: str
     price: float
@@ -62,11 +69,11 @@ class Item(HookLoopModel):
 ### 2. Create a Database
 
 ```python
-from ducttapedb.hookloopdb.table import HookLoopTable
+from ducttapedb import SafetyTapeTable
 
 # Create an async SQLite database
 async def setup_database():
-    table = await HookLoopTable.create_file("items", "items.db")
+    table = await SafetyTapeTable.create_file("items", "items.db")
     await table.initialize()
     Item.set_table(table)
 ```
@@ -91,6 +98,14 @@ print(retrieved_item)
 ```python
 items_in_stock = await Item.models_from_db(order_by="json_extract(data, '$.price') ASC")
 print(items_in_stock)
+```
+
+#### Soft Delete and Restore
+```python
+await item.soft_delete()
+await item.restore()
+# or restore by id
+await Item.restore_from_id(item.id)
 ```
 
 #### Delete
@@ -128,8 +143,23 @@ Other examples included in this repo:
      python examples\async_inserts\example.py 
      ```
     - You should see stats printed as it inserts and retrieves rows with the async HookLoopModel
-    
-2. **More examples planned**
+
+2. **Query and Order by JSON Fields**:
+   - Query records where a JSON field matches a value:
+     ```python
+     items_with_high_priority = await Item.models_from_db(
+         filter_sql="json_extract(data, '$.priority') = ?",
+         filter_params=["high"]
+     )
+     ```
+   - Order records by a JSON field:
+     ```python
+     items_ordered_by_price = await Item.models_from_db(
+         order_by="json_extract(data, '$.price') DESC"
+     )
+     ```
+       
+3. **More examples planned**
 ---
 
 ## **Roadmap**

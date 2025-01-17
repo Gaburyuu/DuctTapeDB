@@ -1,7 +1,7 @@
 [project]
 name = "ducttapedb"
-version = "2025.01.12.01"
-description = "Persist pydantic models and query NoSQL-like."
+version = "2025.01.17.01"
+description = "Persist pydantic models and query NoSQL-like. Convenient model management and storage."
 authors = [{name="Gabu", email="gaburyuu@gmail.com"}]
 maintainers = [{name="Gabu", email="gaburyuu@gmail.com"}]
 license = { text = "MIT" }
