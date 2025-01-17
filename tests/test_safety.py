@@ -295,3 +295,32 @@ async def test_monster_bulk_save(setup_table):
         await monster.refresh()
         assert monster.id is not None  # Models remain unsynchronized
         assert monster.version is not None  # Models are updated
+
+@pytest.mark.asyncio
+async def test_updated_at_tracking(setup_table):
+    """Test that the `updated_at` field is updated correctly on changes."""
+    # Insert a new Monster
+    monster = Monster(name="Dragon", level=10)
+    await monster.save()
+
+    # Fetch the record directly from the database to check timestamps
+    table = setup_table
+    query = f"SELECT created_at, updated_at FROM {table.table_name} WHERE id = ?"
+    cursor = await table.controller.execute(query, (monster.id,))
+    created_at, updated_at = await cursor.fetchone()
+
+    assert created_at is not None
+    assert updated_at is not None
+    assert created_at == updated_at  # On initial insert, created_at == updated_at
+
+    # Update the Monster
+    await asyncio.sleep(0.1)
+    monster.level = 15
+    await monster.save()
+
+    # Fetch the record again to verify updated_at has changed
+    cursor = await table.controller.execute(query, (monster.id,))
+    new_created_at, new_updated_at = await cursor.fetchone()
+
+    assert new_created_at == created_at  # created_at should remain unchanged
+    assert new_updated_at != updated_at  # updated_at should be updated

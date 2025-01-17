@@ -17,8 +17,12 @@ class SafetyTapeTable(HookLoopTable):
             CREATE TABLE IF NOT EXISTS {self.table_name} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 version INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL,
                 data JSON NOT NULL
             )
+
         """
         await self.controller.execute(create_table_query)
 
@@ -72,8 +76,8 @@ class SafetyTapeTable(HookLoopTable):
 
         if id_value is None:
             query = f"""
-                INSERT INTO {self.table_name} (version, data)
-                VALUES (0, json(?))
+                INSERT INTO {self.table_name} (version, created_at, updated_at, data)
+                VALUES (0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, json(?))
                 RETURNING id, version
             """
             params = [
@@ -84,7 +88,7 @@ class SafetyTapeTable(HookLoopTable):
                 raise ValueError("Version must be provided for updates in SafetyTape.")
             query = f"""
                 UPDATE {self.table_name}
-                SET data = json(?), version = version + 1
+                SET data = json(?), version = version + 1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND version = ?
                 RETURNING id, version
             """
