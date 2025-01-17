@@ -52,6 +52,31 @@ class SafetyTapeTable(HookLoopTable):
 
         self.columns = await self.get_non_data_columns()
 
+    async def find(self, doc_id: int) -> dict | None:
+        """
+        Find a document by ID, excluding soft-deleted records by default.
+
+        Args:
+            doc_id (int): The ID of the document.
+
+        Returns:
+            dict | None: The document, or None if not found.
+        """
+        query = f"""
+            SELECT id, version, data
+            FROM {self.table_name}
+            WHERE id = ? AND deleted_at IS NULL
+        """
+        cursor = await self.controller.execute(query, (doc_id,))
+        result = await cursor.fetchone()
+        if result:
+            return {
+                "id": result[0],
+                "version": result[1],
+                "data": json.loads(result[-1]),
+            }
+        return None
+
     async def upsert(self, document: dict[Any, Any]) -> tuple[int, int]:
         """
         Insert or update a document with optimistic locking.

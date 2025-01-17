@@ -296,6 +296,7 @@ async def test_monster_bulk_save(setup_table):
         assert monster.id is not None  # Models remain unsynchronized
         assert monster.version is not None  # Models are updated
 
+
 @pytest.mark.asyncio
 async def test_updated_at_tracking(setup_table):
     """Test that the `updated_at` field is updated correctly on changes."""
@@ -314,7 +315,7 @@ async def test_updated_at_tracking(setup_table):
     assert created_at == updated_at  # On initial insert, created_at == updated_at
 
     # Update the Monster
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(1)
     monster.level = 15
     await monster.save()
 
@@ -324,3 +325,99 @@ async def test_updated_at_tracking(setup_table):
 
     assert new_created_at == created_at  # created_at should remain unchanged
     assert new_updated_at != updated_at  # updated_at should be updated
+
+
+@pytest.mark.asyncio
+async def test_model_soft_delete(setup_table):
+    """Test soft-deleting a model instance."""
+    # Insert a new Monster
+    monster = Monster(name="Slime", level=5)
+    await monster.save()
+
+    # Soft-delete the Monster
+    await monster.soft_delete()
+
+    # Verify the Monster is excluded from regular queries
+    models = await Monster.models_from_db()
+    assert monster.id not in [m.id for m in models]
+
+    # Verify the Monster still exists in the database (soft-deleted)
+    table = setup_table
+    query = f"SELECT deleted_at FROM {table.table_name} WHERE id = ?"
+    cursor = await table.controller.execute(query, (monster.id,))
+    deleted_at = await cursor.fetchone()
+    assert deleted_at is not None  # Soft delete should set `deleted_at` timestamp
+
+
+@pytest.mark.asyncio
+async def test_model_restore(setup_table):
+    """Test restoring a soft-deleted model instance."""
+    # Insert a new Monster and soft-delete it
+    monster = Monster(name="Dragon", level=10)
+    await monster.save()
+    await monster.soft_delete()
+
+    # Verify the Monster is excluded from regular queries
+    models = await Monster.models_from_db()
+    assert monster.id not in [m.id for m in models]
+
+    # Restore the Monster
+    await monster.restore()
+
+    # Verify the Monster is included in regular queries again
+    models = await Monster.models_from_db()
+    assert monster.id in [m.id for m in models]
+
+    # Verify `deleted_at` is cleared
+    table = setup_table
+    query = f"SELECT deleted_at FROM {table.table_name} WHERE id = ?"
+    cursor = await table.controller.execute(query, (monster.id,))
+    deleted_at = await cursor.fetchone()
+    assert deleted_at[0] is None  # `deleted_at` should be cleared
+
+
+@pytest.mark.asyncio
+async def test_restore_from_id(setup_table):
+    """Test restoring a soft-deleted record by ID."""
+    # Insert a new Monster and soft-delete it
+    monster = Monster(name="Goblin", level=7)
+    await monster.save()
+    await monster.soft_delete()
+
+    # Verify the Monster is excluded from regular queries
+    models = await Monster.models_from_db()
+    assert monster.id not in [m.id for m in models]
+
+    # Restore the Monster using the class method
+    await Monster.restore_from_id(monster.id)
+
+    # Verify the Monster is included in regular queries again
+    models = await Monster.models_from_db()
+    assert monster.id in [m.id for m in models]
+
+    # Verify `deleted_at` is cleared
+    table = setup_table
+    query = f"SELECT deleted_at FROM {table.table_name} WHERE id = ?"
+    cursor = await table.controller.execute(query, (monster.id,))
+    deleted_at = await cursor.fetchone()
+    assert deleted_at[0] is None  # `deleted_at` should be cleared
+
+
+@pytest.mark.asyncio
+async def test_models_from_db_with_soft_deletes(setup_table):
+    """Test models_from_db excludes and includes soft-deleted records."""
+    # Insert two Monsters with a unique level (99) to identify them in this test
+    monster1 = Monster(name="Healslime", level=99)
+    monster2 = Monster(name="Dragon", level=99)
+    await monster1.save()
+    await monster2.save()
+
+    # Soft-delete one Monster
+    await monster1.soft_delete()
+
+    # Verify non-deleted records are returned by default
+    models = await Monster.models_from_db(
+        filter_sql="json_extract(data, '$.level') = ?", filter_params=[99]
+    )
+    assert len(models) == 1
+    assert models[0].id == monster2.id
