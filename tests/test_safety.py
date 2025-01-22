@@ -475,7 +475,7 @@ async def test_full_save_for_new_record(setup_auto_table):
 
 
 @pytest.mark.asyncio
-async def test_partial_save(setup_auto_table, capsys):
+async def test_partial_save(setup_auto_table):
     """Test partial save updates only the modified fields."""
     # Create and save a new item
     monster = AutoMonster(name="LiquidMetalSlime", level=22, attack=30)
@@ -493,3 +493,38 @@ async def test_partial_save(setup_auto_table, capsys):
 
     data = json.loads(row[0])
     assert data == monster.model_dump(exclude={"id", "version", "updated_fields"})
+
+
+@pytest.mark.asyncio
+async def test_optimistic_locking(setup_auto_table):
+    """Test optimistic locking prevents updates with mismatched versions."""
+    # Create and save a new item
+    monster = AutoMonster(name="Metal King Slime", level=45, attack=93)
+    await monster.save()
+
+    # Simulate a version mismatch
+    monster.version = 999
+    monster.attack = 94
+
+    with pytest.raises(RuntimeError, match="Version mismatch detected"):
+        await monster.save()
+
+
+@pytest.mark.asyncio
+async def test_no_updates(setup_auto_table):
+    """Test that no updates are made when no fields are modified."""
+    monster = AutoMonster(name="Gold Slime", level=64, attack=128)
+    await monster.save()
+
+    # Save without making any changes
+    await monster.save()
+
+    # Verify the version and data remain unchanged
+    query = f"SELECT data, version FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (monster.id,))
+    row = await cursor.fetchone()
+    assert row is not None
+
+    data, version = json.loads(row[0]), row[1]
+    assert data == monster.model_dump(exclude={"id", "version", "updated_fields"})
+    assert version == monster.version  # No version increment
