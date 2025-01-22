@@ -4,9 +4,11 @@ import asyncio
 from src import (
     SafetyTapeTable,
     SafetyTapeModel,
+    AutoSafetyTapeModel,
 )
 from src.ducttapedb.hookloopdb.controller import AsyncSQLiteController
 from typing import Optional
+import json
 
 
 @pytest_asyncio.fixture(scope="module")
@@ -30,6 +32,22 @@ async def setup_table(setup_controller):
     table = SafetyTapeTable(setup_controller, table_name)
     await table.initialize()
     Monster.set_table(table)
+    yield table
+
+
+class AutoMonster(AutoSafetyTapeModel):
+    name: str
+    level: int
+    attack: Optional[int] = 10
+
+
+@pytest_asyncio.fixture
+async def setup_auto_table(setup_controller):
+    """Fixture to set up a SafetyTapeTable and the AutoMonster model."""
+    table_name = "auto_monster_table"
+    table = SafetyTapeTable(setup_controller, table_name)
+    await table.initialize()
+    AutoMonster.set_table(table)
     yield table
 
 
@@ -421,3 +439,57 @@ async def test_models_from_db_with_soft_deletes(setup_table):
     )
     assert len(models) == 1
     assert models[0].id == monster2.id
+
+
+@pytest.mark.asyncio
+async def test_field_tracking():
+    """Test that updated fields are tracked correctly."""
+    item = AutoMonster(name="HealSlime", level=12, attack=7)
+
+    # Update fields
+    item.level = 13
+    item.attack = 10
+
+    # Verify tracked fields
+    assert item.updated_fields == {"level", "attack"}
+
+    # Check partial update data
+    partial_data = item.get_partial_update_data()
+    assert partial_data == {"level": 13, "attack": 10}
+
+
+@pytest.mark.asyncio
+async def test_full_save_for_new_record(setup_auto_table):
+    """Test saving a new record performs a full save."""
+    monster = AutoMonster(name="HealSlime", level=12, attack=7)
+    await monster.save()
+
+    # Verify the database contains the full record
+    query = f"SELECT data FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (monster.id,))
+    row = await cursor.fetchone()
+    assert row is not None
+
+    data = json.loads(row[0])
+    assert data == {"name": "HealSlime", "level": 12, "attack": 7}
+
+
+@pytest.mark.asyncio
+async def test_partial_save(setup_auto_table, capsys):
+    """Test partial save updates only the modified fields."""
+    # Create and save a new item
+    monster = AutoMonster(name="LiquidMetalSlime", level=22, attack=30)
+    await monster.save()
+
+    # Update only one field
+    monster.level = 23
+    await monster.save()
+
+    # Verify only the updated field is reflected in the database
+    query = f"SELECT data FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (monster.id,))
+    row = await cursor.fetchone()
+    assert row is not None
+
+    data = json.loads(row[0])
+    assert data == monster.model_dump(exclude={"id", "version", "updated_fields"})

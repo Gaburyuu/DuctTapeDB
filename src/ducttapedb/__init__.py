@@ -11,6 +11,9 @@ from .safetytapedb import (
     SafetyTapeTable,
     SafetyTapeModel,
 )
+from .autosafetytapedb import (
+    AutoSafetyTapeModel,
+)
 
 # Explicitly define the public API
 __all__ = [
@@ -21,4 +24,5 @@ __all__ = [
     "HookLoopTable",
     "SafetyTapeTable",
     "SafetyTapeModel",
+    "AutoSafetyTapeModel",
 ]
