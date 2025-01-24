@@ -7,7 +7,6 @@ from .ducttapedb import (
     SafetyTapeTable,
     SafetyTapeModel,
     AutoSafetyTapeModel,
-    AutoAutoSafetyTapeModel,
 )
 
 # Explicitly define the public API
@@ -20,5 +19,4 @@ __all__ = [
     "SafetyTapeTable",
     "SafetyTapeModel",
     "AutoSafetyTapeModel",
-    "AutoAutoSafetyTapeModel",
 ]

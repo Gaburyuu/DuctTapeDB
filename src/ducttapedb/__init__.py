@@ -13,7 +13,6 @@ from .safetytapedb import (
 )
 from .autosafetytapedb import (
     AutoSafetyTapeModel,
-    AutoAutoSafetyTapeModel,
 )
 
 # Explicitly define the public API
@@ -26,5 +25,4 @@ __all__ = [
     "SafetyTapeTable",
     "SafetyTapeModel",
     "AutoSafetyTapeModel",
-    "AutoAutoSafetyTapeModel",
 ]

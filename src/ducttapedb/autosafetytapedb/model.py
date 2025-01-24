@@ -88,3 +88,19 @@ class AutoSafetyTapeModel(SafetyTapeModel, validate_assignment=True):
             dict: A dictionary of updated fields and their current values.
         """
         return {field: getattr(self, field) for field in self.updated_fields}
+
+    async def asetattr(self, key: str, value: Any) -> None:
+        """
+        Override attribute assignment to track updates and save changes.
+
+        Args:
+            key (str): The name of the attribute being updated.
+            value (Any): The new value for the attribute.
+
+        Raises:
+            RuntimeError: If the save operation fails due to version mismatch or other errors.
+        """
+        if key in self.model_fields and getattr(self, key, None) != value:
+            super().__setattr__(key, value)  # Set the value with validation
+            self.updated_fields.add(key)
+            await self.save()
