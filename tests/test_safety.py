@@ -496,6 +496,27 @@ async def test_partial_save(setup_auto_table):
 
 
 @pytest.mark.asyncio
+async def test_partial_auto_save(setup_auto_table):
+    """Test partial save updates at time of update."""
+    # Create and save a new item
+    monster = AutoMonster(name="Platinum Slime", level=80, attack=255)
+    await monster.save()
+
+    # update and it should just go
+    await monster.asetattr(key="level", value=81)
+    await monster.asetattr(key="attack", value=277)
+
+    # Verify the updates are reflected in the database
+    query = f"SELECT data FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (monster.id,))
+    row = await cursor.fetchone()
+    assert row is not None
+
+    data = json.loads(row[0])
+    assert data == monster.model_dump(exclude={"id", "version", "updated_fields"})
+
+
+@pytest.mark.asyncio
 async def test_optimistic_locking(setup_auto_table):
     """Test optimistic locking prevents updates with mismatched versions."""
     # Create and save a new item
