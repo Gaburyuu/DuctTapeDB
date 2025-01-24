@@ -1,1 +1,2 @@
 from .model import AutoSafetyTapeModel as AutoSafetyTapeModel
+from .veryautomodel import AutoAutoSafetyTapeModel as AutoAutoSafetyTapeModel

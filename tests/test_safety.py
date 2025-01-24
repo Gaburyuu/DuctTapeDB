@@ -5,6 +5,7 @@ from src import (
     SafetyTapeTable,
     SafetyTapeModel,
     AutoSafetyTapeModel,
+    AutoAutoSafetyTapeModel,
 )
 from src.ducttapedb.hookloopdb.controller import AsyncSQLiteController
 from typing import Optional
@@ -41,6 +42,12 @@ class AutoMonster(AutoSafetyTapeModel):
     attack: Optional[int] = 10
 
 
+class AutoAutoMonster(AutoAutoSafetyTapeModel):
+    name: str
+    level: int
+    attack: Optional[int] = 10
+
+
 @pytest_asyncio.fixture
 async def setup_auto_table(setup_controller):
     """Fixture to set up a SafetyTapeTable and the AutoMonster model."""
@@ -48,6 +55,7 @@ async def setup_auto_table(setup_controller):
     table = SafetyTapeTable(setup_controller, table_name)
     await table.initialize()
     AutoMonster.set_table(table)
+    AutoAutoMonster.set_table(table)
     yield table
 
 
@@ -528,3 +536,116 @@ async def test_no_updates(setup_auto_table):
     data, version = json.loads(row[0]), row[1]
     assert data == monster.model_dump(exclude={"id", "version", "updated_fields"})
     assert version == monster.version  # No version increment
+
+
+# the auto auto versions
+@pytest.mark.asyncio
+async def test_full_save_for_new_record_auto(setup_auto_table):
+    """Test saving a new record performs a full save."""
+    monster = AutoAutoMonster(name="HealSlime", level=12, attack=7)
+    await monster.save()
+
+    # Verify the database contains the full record
+    query = f"SELECT data FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (monster.id,))
+    row = await cursor.fetchone()
+    assert row is not None
+
+    data = json.loads(row[0])
+    assert data == {"name": "HealSlime", "level": 12, "attack": 7}
+
+
+@pytest.mark.asyncio
+async def test_partial_save_auto(setup_auto_table):
+    """Test partial save updates only the modified fields."""
+    # Create and save a new item
+    monster = AutoAutoMonster(name="LiquidMetalSlime", level=22, attack=30)
+    await monster.save()
+
+    # Update only one field
+    await monster.setattr("level", 23)
+    await monster.setattr("attack", 35)
+    # don't explicitly save, should happen automatically
+    print("monster", monster)
+
+    # Verify only the updated field is reflected in the database
+    query = f"SELECT data FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (monster.id,))
+    row = await cursor.fetchone()
+    assert row is not None
+
+    data = json.loads(row[0])
+    print(data)
+    assert data == monster.model_dump(exclude={"id", "version", "updated_fields"})
+
+
+@pytest.mark.asyncio
+async def test_no_updates_auto(setup_auto_table):
+    """Test that no updates are made when no fields are modified."""
+    monster = AutoAutoMonster(name="Gold Slime", level=64, attack=128)
+    await monster.save()
+
+    # Save without making any changes
+    await monster.save()
+
+    # Verify the version and data remain unchanged
+    query = f"SELECT data, version FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (monster.id,))
+    row = await cursor.fetchone()
+    assert row is not None
+
+    data, version = json.loads(row[0]), row[1]
+    assert data == monster.model_dump(exclude={"id", "version", "updated_fields"})
+    assert version == monster.version  # No version increment
+
+
+@pytest.mark.asyncio
+async def test_debounced_update(setup_auto_table):
+    """Test that debounced_update delays saves until the debounce period ends."""
+    dragon = AutoAutoMonster(name="Green Dragon", level=50, attack=200)
+    await dragon.save()
+
+    # Use debounced_update to change a field
+    dragon.debounced_update("level", 55)
+
+    # Verify that the save hasn't completed immediately
+    query = f"SELECT data FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (dragon.id,))
+    row = await cursor.fetchone()
+    data = json.loads(row[0])
+    assert data["level"] == 50  # Save hasn't occurred yet
+
+    # Wait for the debounce period to complete
+    await asyncio.sleep(0.2)
+
+    # Verify the save now reflects the updated value
+    cursor = await setup_auto_table.controller.execute(query, (dragon.id,))
+    row = await cursor.fetchone()
+    data = json.loads(row[0])
+    assert data["level"] == 55
+
+@pytest.mark.asyncio
+async def test_multiple_field_updates(setup_auto_table):
+    """Test that debounced updates across different fields handle tasks independently."""
+    dragon = AutoAutoMonster(name="Red Dragon", level=100, attack=600)
+    await dragon.save()
+    print(dragon)
+    # Perform rapid updates on different fields
+    dragon.debounced_update("level", 101)
+    print(dragon)
+    dragon.debounced_update("attack", 625)
+    print(dragon)
+    dragon.debounced_update("level", 102)
+    print(dragon)
+    dragon.debounced_update("attack", 650)
+    print(dragon)
+    await asyncio.sleep(0.2)  # Allow debounce periods to complete
+    print(dragon)
+
+    # Verify that both fields are updated
+    query = f"SELECT data FROM {setup_auto_table.table_name} WHERE id = ?"
+    cursor = await setup_auto_table.controller.execute(query, (dragon.id,))
+    row = await cursor.fetchone()
+    data = json.loads(row[0])
+    assert data["level"] == 102
+    assert data["attack"] == 650
