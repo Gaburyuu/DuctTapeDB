@@ -19,6 +19,9 @@ Originally created for a hobby project, DuctTapeDB has evolved into a powerful t
     - **Optimistic Locking**: Automatically version updates.
     - **Soft Deletes**: Built-in support for marking records as deleted without losing data.
     - **Automatic Timestamps**: Tracks `created_at` and `updated_at` for all records.
+- **Persist on change conveniences**:
+  - **AutoSafetyTapeDB** (Async):
+    - **asetattr**: Save the model to the db as you update an attribute
 ---
 
 ## **Features**
@@ -158,8 +161,33 @@ Other examples included in this repo:
          order_by="json_extract(data, '$.price') DESC"
      )
      ```
-       
-3. **More examples planned**
+
+3. **Save as You Go**:
+   - 
+    ```python
+    from ducttapedb import SafetyTapeTable, AutoSafetyTapeModel
+
+    # Create the model
+    class Item(AutoSafetyTapeModel):
+      name: str
+      price: float
+      in_stock: bool
+
+    # Create an async SQLite database
+    table = await SafetyTapeTable.create_file("items", "items.db")
+    await table.initialize()
+    Item.set_table(table)
+
+    new_item = Item(name="Shoe", price = 19.99, in_stock=True)
+    # This will update the db and change the price and version
+    await new_item.asetattr(key="price", value=15.99) # on sale!
+
+    # This will also update the db, only on fields that we've changed
+    new_item.in_stock = False # oh no!
+    await new_item.save()
+    ```
+
+4. **More examples planned**
 ---
 
 ## **Roadmap**
