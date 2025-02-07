@@ -1,214 +1,155 @@
-# 🛠️ DuctTapeDB
+# DuctTapeDB
 
-DuctTapeDB is a lightweight, SQLite-powered solution designed for **quickly persisting and searching Pydantic models**. Whether you're working on **non-technical projects** or building **fast prototypes with FastAPI**, DuctTapeDB provides a simple and intuitive way to store and manage your data.
+**DuctTapeDB** is a lightweight persistence layer for **Pydantic** models using **SQLite** (both sync & async). Think of it as a quick, no-frills doc store that supports partial updates, optimistic concurrency, and both synchronous and asynchronous usage.
 
-Originally created for a hobby project, DuctTapeDB has evolved into a powerful tool for **rapid development**, with a focus on ease of use and integration. 🚀
+## Key Features
 
----
+- **Synchronous & Asynchronous** support out of the box:
+  - Use `DuctTapeDB` for a straightforward sync workflow.
+  - Use `HookLoopTable + AsyncSQLiteController` for async operations.
+- **Pydantic Integration**:
+  - Define models by extending `DuctTapeModel` or its variants (like `SafetyTapeModel` or `AutoSafetyTapeModel`).
+  - Automatic validation, model dumping, etc. courtesy of Pydantic.
+- **Optimistic Locking** with a built-in version column (`SafetyTapeModel`):
+  - Prevent conflicting updates by incrementing a `version` each time.
+- **Partial JSON Updates**:
+  - Update only changed fields in the JSON column, saving time and concurrency headaches.
+- **Soft Deletes** and extra auditing columns (`created_at`, `updated_at`, etc.) if you need them.
+- **Extensive Test Suite** showing concurrency handling, partial updates, and more.
 
-## **Why Use DuctTapeDB?**
-
-- **Pydantic-Centric**: Effortlessly store and search Pydantic models without additional setup.
-- **FastAPI-Ready**: Perfect for creating CRUD APIs in minutes.
-- **Lightweight**: Powered by SQLite—works out-of-the-box, no server required.
-- **Async and Sync Support**:
-  - **HookLoopDB** (Async): Feature-rich and optimized for modern async workflows.
-  - **DuctTapeDB** (Sync): A straightforward synchronous option, with plans to align features across both modes.
-- **Dataloss Safety and Optimism**:
-  - **SafetyTapeDB** (Async):
-    - **Optimistic Locking**: Automatically version updates.
-    - **Soft Deletes**: Built-in support for marking records as deleted without losing data.
-    - **Automatic Timestamps**: Tracks `created_at` and `updated_at` for all records.
-- **Persist on change conveniences**:
-  - **AutoSafetyTapeDB** (Async):
-    - **asetattr**: Save the model to the db as you update an attribute
----
-
-## **Features**
-
-- **Simple Persistence**: Automatically save and retrieve Pydantic models with minimal code.
-- **Advanced Querying**: Query data using JSON fields and SQL expressions.
-- **Soft Deletes**: Mark records as deleted while keeping them recoverable.
-- **Restore Functionality**: Easily restore soft-deleted records by ID.
-- **Automatic Timestamps**: Tracks record creation and updates with `created_at` and `updated_at`.
-- **Async and Sync Options**: Use what fits your project best.
-- **FastAPI Integration**: Quickly build APIs with CRUD functionality.
-- **SQLite-Powered**: Works anywhere—no need for additional infrastructure.
-
----
-
-## **Installation**
-
-Install DuctTapeDB using pip:
+## Installation
 
 ```bash
 pip install ducttapedb
 ```
 
-For examples using **FastAPI** and **FastUI**, ensure you also install the required dependencies:
+*(Or if you want to install from source, clone the repo and do `pip install .`.)*
+
+## Quick Start (Sync)
+
+Below is a simple synchronous example using `DuctTapeDB`:
+
+```python
+from ducttapedb import DuctTapeDB, DuctTapeModel
+
+# 1. Define your model
+class Hero(DuctTapeModel):
+    name: str
+    level: int
+
+# 2. Create a DB instance (in-memory by default)
+db = DuctTapeDB.create_memory(table="heroes")
+# Set the shared DB on the model class
+Hero.set_db(db)
+
+# 3. Create and save a model
+erdrick = Hero(name="Erdrick", level=50)
+erdrick.save()          # returns the auto-generated ID
+print(erdrick.id)       # e.g. 1
+
+# 4. Retrieve the same record
+loaded = Hero.from_id(erdrick.id)
+print(loaded.name)      # "Erdrick"
+print(loaded.level)     # 50
+
+# 5. Update & re-save
+loaded.level = 99
+loaded.save()
+```
+
+## Quick Start (Async)
+
+For asynchronous usage, you’ll typically work with `HookLoopTable`, an `AsyncSQLiteController`, and a Pydantic model that extends `HookLoopModel`:
+
+```python
+import asyncio
+from ducttapedb.hookloopdb import HookLoopModel, HookLoopTable
+from ducttapedb.hookloopdb.controller import AsyncSQLiteController
+from typing import Optional
+
+class AsyncHero(HookLoopModel):
+    name: str
+    level: int
+    hp: Optional[int] = 100  # default HP
+
+async def main():
+    controller = await AsyncSQLiteController.create_memory(shared_cache=True)
+    table = HookLoopTable(controller, "async_heroes")
+    await table.initialize(indexes=["name", "level"])
+
+    # 1. Set table on the model
+    AsyncHero.set_table(table)
+
+    # 2. Create & save a model
+    hero = AsyncHero(name="Async Erdrick", level=30)
+    await hero.save()
+    print("New Hero ID:", hero.id)
+
+    # 3. Load by ID
+    loaded = await AsyncHero.from_id(hero.id)
+    print("Loaded Hero:", loaded)
+
+asyncio.run(main())
+```
+
+## SafetyTapeModel for Optimistic Locking
+
+If you need concurrency protection and version checks, use `SafetyTapeModel` and `SafetyTapeTable`. Each update increments a `version` column, so if two processes (or tasks) try to update the same row simultaneously, the second one to save will raise a `RuntimeError` if the version is stale.
+
+```python
+from ducttapedb.safetytapedb import SafetyTapeModel, SafetyTapeTable
+
+class Monster(SafetyTapeModel):
+    name: str
+    level: int
+    # version is auto-handled behind the scenes
+
+# ...
+
+# On save, if version doesn’t match, you get a RuntimeError
+```
+
+## AutoSafetyTapeModel for Partial Updates
+
+For even more convenience, use `AutoSafetyTapeModel` which tracks updated fields automatically. Only changed fields are written back to the DB:
+
+```python
+from ducttapedb.safetytapedb import AutoSafetyTapeModel
+
+class AutoMonster(AutoSafetyTapeModel):
+    name: str
+    level: int
+
+monster = AutoMonster(name="Slime", level=5)
+await monster.save()   # Full insert
+monster.level = 6
+await monster.save()   # Updates only level in JSON
+# Or as a one-liner
+await monster.asetattr(key="level", value=7)
+```
+
+## Partial Updates in Action
+
+With `AutoSafetyTapeModel`, you can see which fields changed by checking `updated_fields`. If none changed, no update is performed. That’s a big concurrency boost for heavily contended rows.
+
+## Testing
+
+We use `pytest` (including `pytest-asyncio`). To run tests:
 
 ```bash
-pip install fastapi fastui pydantic
+pytest
 ```
 
----
+*(We also have concurrency stress tests, partial update tests, version mismatch tests, etc.)*
 
-## **Quickstart**
+## Contributing
 
-### 1. Define Your Pydantic Model
+1. Clone the repo
+2. Create a virtual environment
+3. Install dependencies: `pip install -e .[dev]`
+4. Run `black . && ruff check . && pytest`
 
-```python
-from ducttapedb import SafetyTapeModel
+Pull requests are welcome! For major changes, please open an issue first to discuss what you’d like to change.
+## License
 
-class Item(SafetyTapeModel):
-    name: str
-    description: str
-    price: float
-    in_stock: bool
-```
-
----
-
-### 2. Create a Database
-
-```python
-from ducttapedb import SafetyTapeTable
-
-# Create an async SQLite database
-async def setup_database():
-    table = await SafetyTapeTable.create_file("items", "items.db")
-    await table.initialize()
-    Item.set_table(table)
-```
-
----
-
-### 3. Perform CRUD Operations
-
-#### Create
-```python
-item = Item(name="Widget", description="A useful widget", price=19.99, in_stock=True)
-await item.save()
-```
-
-#### Read
-```python
-retrieved_item = await Item.from_id(item.id)
-print(retrieved_item)
-```
-
-#### Query
-```python
-items_in_stock = await Item.models_from_db(order_by="json_extract(data, '$.price') ASC")
-print(items_in_stock)
-```
-
-#### Soft Delete and Restore
-```python
-await item.soft_delete()
-await item.restore()
-# or restore by id
-await Item.restore_from_id(item.id)
-```
-
-#### Delete
-```python
-await item.delete()
-```
-
----
-
-## **Using with FastAPI**
-
-You can quickly spin up a CRUD API using DuctTapeDB with FastAPI. Here's how:
-
-1. **Run the Example API**:
-   - Install dependencies:
-     ```bash
-     pip install fastapi fastui pydantic
-     ```
-   - Start the development server:
-     ```bash
-     fastapi dev examples\api\main.py
-     ```
-
-2. **Navigate to**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the interactive API documentation, or to [http://127.0.0.1:8000](http://127.0.0.1:8000) for a very simple FastUI table and a form to insert items.
-
----
-
-## **More Examples**
-
-Other examples included in this repo:
-
-1. **Inserts with a timer going**:
-   - Install dependencies:
-     ```bash
-     python examples\async_inserts\example.py 
-     ```
-    - You should see stats printed as it inserts and retrieves rows with the async HookLoopModel
-
-2. **Query and Order by JSON Fields**:
-   - Query records where a JSON field matches a value:
-     ```python
-     items_with_high_priority = await Item.models_from_db(
-         filter_sql="json_extract(data, '$.priority') = ?",
-         filter_params=["high"]
-     )
-     ```
-   - Order records by a JSON field:
-     ```python
-     items_ordered_by_price = await Item.models_from_db(
-         order_by="json_extract(data, '$.price') DESC"
-     )
-     ```
-
-3. **Save as You Go**:
-   - 
-    ```python
-    from ducttapedb import SafetyTapeTable, AutoSafetyTapeModel
-
-    # Create the model
-    class Item(AutoSafetyTapeModel):
-      name: str
-      price: float
-      in_stock: bool
-
-    # Create an async SQLite database
-    table = await SafetyTapeTable.create_file("items", "items.db")
-    await table.initialize()
-    Item.set_table(table)
-
-    new_item = Item(name="Shoe", price = 19.99, in_stock=True)
-    # This will update the db and change the price and version
-    await new_item.asetattr(key="price", value=15.99) # on sale!
-
-    # This will also update the db, only on fields that we've changed
-    new_item.in_stock = False # oh no!
-    await new_item.save()
-    ```
-
-4. **More examples planned**
----
-
-## **Roadmap**
-
-- Align features across **HookLoopDB** (Async) and **DuctTapeDB** (Sync).
-- Add more advanced querying capabilities.
-- Simplify relationships and data normalization.
-- Add more convenience features.
-
----
-
-## **Contributing**
-
-Contributions are welcome! If you encounter bugs or have feature requests, feel free to open an issue on GitHub.
-
----
-
-## **License**
-
-DuctTapeDB is licensed under the MIT License. See the `LICENSE` file for more details.
-
----
-
-Let me know if you'd like any additional tweaks! 🚀
+MIT License—see the [LICENSE](LICENSE) file for details.
