@@ -1,4 +1,4 @@
-from src.ducttapedb.hookloopdb import HookLoopTable
+from ..hookloopdb import HookLoopTable
 import json
 from typing import Any
 
