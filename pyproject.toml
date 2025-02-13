@@ -1,6 +1,6 @@
 [project]
 name = "ducttapedb"
-version = "2025.02.11.01"
+version = "2025.02.13.01"
 description = "Persist pydantic models. Convenient model management and storage."
 authors = [{name="Gabu", email="gaburyuu@gmail.com"}]
 maintainers = [{name="Gabu", email="gaburyuu@gmail.com"}]
