@@ -9,7 +9,7 @@ class AsyncSQLiteController:
         self._lock = asyncio.Lock()  # Lock to ensure task safety
         self._semaphore = asyncio.Semaphore(semaphore)  # Limit concurrent queries
 
-    async def connect(self, uri: bool = False):
+    async def connect(self, uri: bool = False, echo: bool = False):
         """Establish a connection to the SQLite database."""
         async with self._lock:
             if self._connection:
@@ -105,7 +105,7 @@ class AsyncSQLiteController:
 
     @classmethod
     async def create_file(
-        cls, filepath: str, uri: bool = False
+        cls, filepath: str, uri: bool = False, echo: bool = False
     ) -> "AsyncSQLiteController":
         """
         Factory method to create a file-based AsyncSQLiteController.

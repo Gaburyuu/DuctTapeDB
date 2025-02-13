@@ -98,7 +98,6 @@ class SafetyTapeTable(HookLoopTable):
         id_value = document.get("id")
         json_data = json.dumps(document.get("data", {}))
         version = document.get("version")
-
         if id_value is None:
             query = f"""
                 INSERT INTO {self.table_name} (version, created_at, updated_at, data)
@@ -121,9 +120,12 @@ class SafetyTapeTable(HookLoopTable):
 
         async with self.controller._connection.execute(query, params) as cursor:
             result = await cursor.fetchone()
-            if result is None:
-                raise RuntimeError(
-                    f"Update failed for id={id_value}. Version mismatch detected."
-                )
+
+        await self.controller.commit()
+
+        if result is None:
+            raise RuntimeError(
+                f"Update failed for id={id_value}. Version mismatch detected."
+            )
 
         return result[0], result[1]

@@ -145,9 +145,6 @@ class HookLoopTable:
             WHERE {where_statement}
         """
 
-        print("Executing Query:", query)
-        print("Query Params:", params)
-
         # Execute the query
         cursor = await self.connection.execute(query, params)
 
@@ -257,7 +254,7 @@ class HookLoopTable:
 
     @classmethod
     async def create_memory(
-        cls: Type[T], table_name: str, shared_cache: bool = True
+        cls: Type[T], table_name: str, shared_cache: bool = True, echo: bool = False
     ) -> T:  # Return type is T, dynamically tied to the calling class
         """
         Factory method to create a HookLoopTable or its subclass with an in-memory SQLite database.
@@ -279,7 +276,11 @@ class HookLoopTable:
 
     @classmethod
     async def create_file(
-        cls: Type[T], table_name: str, filepath: str, uri: bool = False
+        cls: Type[T],
+        table_name: str,
+        filepath: str,
+        uri: bool = False,
+        echo: bool = False,
     ) -> T:
         """
         Factory method to create a HookLoopTable or its subclass with a file-based SQLite database.
