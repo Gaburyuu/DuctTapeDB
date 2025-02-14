@@ -94,7 +94,7 @@ class HookLoopTable:
         """
         query = f"""
             SELECT *
-            FROM {self.table}
+            FROM {self.table_name}
             WHERE json_extract(data, '$.' || ?) = ?
         """
         cursor = await self.controller.execute(query, (key, value))
