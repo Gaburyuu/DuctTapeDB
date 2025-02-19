@@ -1,5 +1,5 @@
-from typing import TypeVar, Type, Optional, ClassVar
-from pydantic import BaseModel, ValidationError
+from typing import TypeVar, Type, Optional
+from pydantic import BaseModel, ValidationError, PrivateAttr
 from .ducttapedb import DuctTapeDB
 
 T = TypeVar("T", bound="DuctTapeModel")
@@ -8,7 +8,7 @@ T = TypeVar("T", bound="DuctTapeModel")
 class DuctTapeModel(BaseModel):
     id: Optional[int] = None
     # shared db reference
-    _db: ClassVar[Optional[DuctTapeDB]] = None
+    _table: Optional[DuctTapeDB] = PrivateAttr(default=None)
 
     @classmethod
     def set_db(cls, db: DuctTapeDB):

@@ -1,5 +1,5 @@
 from typing import TypeVar, Type, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 from .table import HookLoopTable
 from typing import Any
 import json
@@ -9,7 +9,7 @@ T = TypeVar("T", bound="HookLoopModel")
 
 class HookLoopModel(BaseModel):
     id: Optional[int] = None
-    _table: Optional[HookLoopTable] = None
+    _table: Optional[HookLoopTable] = PrivateAttr(default=None)
 
     @classmethod
     def set_table(cls, table: HookLoopTable):
@@ -17,9 +17,12 @@ class HookLoopModel(BaseModel):
 
     @classmethod
     async def from_id(cls: Type[T], doc_id: int) -> T:
-        if not cls._table:
-            raise ValueError("No table is set for this model.")
-        document = await cls._table.find(doc_id)
+        if not cls._table or cls._table is None:
+            raise AttributeError("No table is set for this model.")
+        try:
+            document = await cls._table.find(doc_id)
+        except AttributeError:
+            raise AttributeError("No table is set for this model.")
         if not document:
             raise ValueError(f"Document with id={doc_id} not found.")
         data = {"id": document["id"], **document["data"]}
